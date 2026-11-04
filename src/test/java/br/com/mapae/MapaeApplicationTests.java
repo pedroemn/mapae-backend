@@ -1,10 +1,10 @@
-package com.example.mapaebackend;
+package br.com.mapae;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class MapaeBackendApplicationTests {
+class MapaeApplicationTests {
 
     @Test
     void contextLoads() {
