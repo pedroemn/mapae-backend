@@ -1,0 +1,23 @@
+# Banco local para desenvolvimento, usado quando MAPAE_DB_URL nao esta definida.
+# Suba com: docker compose up -d --wait
+services:
+  banco:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_DB: mapae
+      POSTGRES_USER: mapae
+      POSTGRES_PASSWORD: mapae
+    # Pela rede (-h), para nao dar pronto durante a inicializacao, que so escuta no socket local.
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "mapae", "-d", "mapae"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - ./docker/banco/20_igualar_supabase.sql:/docker-entrypoint-initdb.d/20_igualar_supabase.sql:ro
+      - banco-dados:/var/lib/postgresql/data
+
+volumes:
+  banco-dados:
