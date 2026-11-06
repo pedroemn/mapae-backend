@@ -35,10 +35,7 @@ public class ConsultaLocais {
         return new ResultadoArea(truncado ? encontrados.subList(0, limiteEfetivo) : encontrados, truncado);
     }
 
-    /**
-     * Sem latitude e longitude, lista os locais por id. Com elas, ordena do mais perto ao mais longe e, se houver
-     * raio, só devolve os locais dentro dele.
-     */
+
     public List<LocalProximo> buscarLocais(Double latitude, Double longitude, Double raioMetros, Integer limite) {
         if ((latitude == null) != (longitude == null)) {
             throw new ConsultaGeograficaInvalidaException("latitude e longitude devem ser informadas juntas");
