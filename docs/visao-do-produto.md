@@ -8,11 +8,11 @@ O projeto consiste no desenvolvimento de uma plataforma de descoberta urbana ini
 
 A plataforma centralizará informações sobre restaurantes, bares, eventos, shows, praias, pontos turísticos e outros locais, combinando um mapa interativo com informações dos estabelecimentos, movimentação em tempo real, roteiros, conteúdos em vídeo e recursos de interação entre usuários.
 
-Um dos principais diferenciais será o Gerômetro, um indicador de movimentação dos locais baseado na atividade da comunidade dentro da plataforma, como localização e check-ins. A proposta é permitir que o usuário não apenas descubra quais lugares existem, mas também tenha uma percepção de quais estão mais movimentados e "gerando" naquele momento.
+Um dos principais diferenciais será o Gerômetro, um indicador de movimentação dos locais baseado na atividade da comunidade dentro da plataforma, como localização e confirmações de ida. A proposta é permitir que o usuário não apenas descubra quais lugares existem, mas também tenha uma percepção de quais estão mais movimentados e "gerando" naquele momento.
 
 A plataforma também terá uma experiência de descoberta baseada em roteiros e vídeos curtos. O usuário poderá encontrar sugestões de lugares e atividades, assistir a conteúdos sobre a cidade e acessar diretamente as informações do local apresentado, reduzindo a necessidade de alternar entre diferentes aplicativos.
 
-Além da descoberta, a plataforma contará com recursos sociais, permitindo que usuários realizem check-ins, publiquem conteúdos, avaliem locais, adicionem amigos e compartilhem experiências.
+Além da descoberta, a plataforma contará com recursos sociais, permitindo que usuários confirmem ida a locais, publiquem conteúdos, avaliem locais, adicionem amigos e compartilhem experiências.
 
 ## Problemas
 
@@ -33,7 +33,7 @@ Para isso, a plataforma conecta três elementos principais: Pessoas, Lugares e E
 
 O usuário poderá descobrir um local por meio do mapa, de um roteiro, de um vídeo ou de uma publicação de outro usuário. A partir dessa descoberta, terá acesso às informações necessárias para decidir se deseja conhecer o local, como fotos, avaliações, comentários, horário de funcionamento, preço, localização e rota.
 
-Ao mesmo tempo, a interação da própria comunidade ajudará a tornar a plataforma mais dinâmica. Check-ins, publicações, avaliações e movimentação dos usuários poderão contribuir para identificar lugares que estão em alta e alimentar o Gerômetro, criando uma percepção mais próxima da realidade da cidade naquele momento.
+Ao mesmo tempo, a interação da própria comunidade ajudará a tornar a plataforma mais dinâmica. Confirmações de ida, publicações, avaliações e movimentação dos usuários poderão contribuir para identificar lugares que estão em alta e alimentar o Gerômetro, criando uma percepção mais próxima da realidade da cidade naquele momento.
 
 A longo prazo, a proposta é construir uma plataforma de descoberta urbana local, começando por Aracaju e podendo posteriormente ser adaptada para outras cidades que enfrentem problemas semelhantes de fragmentação de informações e descoberta de experiências.
 
@@ -42,7 +42,7 @@ A longo prazo, a proposta é construir uma plataforma de descoberta urbana local
 | Perfil | Conta | O que faz |
 | ------ | ----- | --------- |
 | Visitante | Sem conta | Explora o mapa, busca lugares e vê as informações públicas dos locais. |
-| Usuário autenticado | Com conta | Além de explorar, cria perfil, adiciona amigos, faz check-in, publica e interage com o conteúdo de outros usuários. |
+| Usuário autenticado | Com conta | Além de explorar, cria perfil, adiciona amigos, confirma ida, publica e interage com o conteúdo de outros usuários. |
 
 ## Telas
 
@@ -81,11 +81,11 @@ Requisitos de comportamento do sistema, levantados para o produto completo. O re
 | Filtro por categoria e status | O sistema deve permitir filtrar locais por categoria (restaurantes, bares, praias) e status (aberto, fechado). |
 | Gestão de locais | O sistema deve permitir o gerenciamento de estabelecimentos. |
 | Detalhamento do local | O sistema deve exibir informações sobre locais e estabelecimentos. |
-| Check-in | O sistema deve permitir que o usuário realize check-in com base na localização. |
+| Confirmação de ida | O sistema deve permitir que o usuário confirme, de qualquer lugar, que vai a um local, sem validação de localização. |
 | Avaliações com notas e mídia | O sistema deve permitir avaliações e comentários dos estabelecimentos, com anexo de fotos. |
 | Conexões sociais | O sistema deve permitir que usuários sigam outros perfis e os visualizem. |
 | Feed de atividades | O sistema deve gerar um feed cronológico contendo as ações recentes dos usuários seguidos. |
-| Perfil de usuário | O sistema deve exibir o perfil de cada usuário com foto, bio, histórico de avaliações públicas e total de check-ins realizados. |
+| Perfil de usuário | O sistema deve exibir o perfil de cada usuário com foto, bio, histórico de avaliações públicas e total de confirmações de ida realizadas. |
 | Cadastro e login | O sistema deve autenticar usuários via e-mail e senha ou login social (Google, Apple, GitHub). |
 | Geração de URLs | O sistema deve trabalhar com URLs pré-assinadas para envio de imagens, vídeos e mídias em geral. |
 
@@ -98,7 +98,7 @@ Definidos na apresentação ao Product Owner (outubro de 2026).
 | RF01 | Conta e sessão | Criar conta, fazer login e encerrar a sessão com segurança. |
 | RF02 | Mapa e locais | Ver o mapa, buscar lugares, aplicar filtros e abrir os detalhes de um local. |
 | RF03 | Amizades | Ver perfis, enviar e responder solicitações de amizade e remover amizades. |
-| RF04 | Feed e check-in | Criar publicações individuais ou colaborativas, ver o feed, curtir, comentar e fazer check-in. |
+| RF04 | Feed e confirmação de ida | Criar publicações individuais ou colaborativas, ver o feed, curtir, comentar e confirmar ida. |
 
 ## Requisitos não funcionais
 
@@ -119,7 +119,7 @@ Funcionalidades do MVP por prioridade:
 | 3 | Informações detalhadas dos locais | Essencial |
 | 4 | Perfis de usuários e sistema de amizades | Essencial |
 | 5 | Feed social com publicações individuais e colaborativas, curtidas e comentários | Essencial |
-| 6 | Check-in em locais e estrutura inicial para o Gerômetro | Desejável |
+| 6 | Confirmação de ida em locais e estrutura inicial para o Gerômetro | Desejável |
 
 Fica para depois:
 
@@ -144,7 +144,7 @@ Modelo proposto a partir dos requisitos RF01 a RF04.
 | Publicacao | id, texto, tipo, midias, criadaEm, localId | publicar(), adicionarAutor(u) |
 | Comentario | id, texto, criadoEm, publicacaoId, usuarioId | - |
 | Curtida | id, criadaEm, publicacaoId, usuarioId | desfazer() |
-| CheckIn | id, dataHora, posicao, usuarioId, localId | registrar() |
+| ConfirmacaoIda | id, dataHora, usuarioId, localId | registrar() |
 
 Enumerações:
 
