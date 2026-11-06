@@ -46,6 +46,7 @@ Registro das decisões tomadas em cada task do `mapae-backend`, com o motivo de 
 | AD-026 | A confirmação de ida não valida localização | Consultas geográficas | Confirmada |
 | AD-027 | "Check-in" passa a se chamar "confirmação de ida" | Consultas geográficas | Confirmada |
 | AD-028 | Consultas sem limite técnico e com coordenadas opcionais | Consultas geográficas | Confirmada |
+| AD-029 | Busca livre no mapa pela API; a tabela `local` guarda só locais de clientes | Consultas geográficas | Confirmada |
 
 ---
 
@@ -178,88 +179,10 @@ O review desta task apontou os itens abaixo, atualizados na task de consultas ge
 ## Task: Estrutura zerada
 
 **Data:** 2026-11-04
-**Situação:** implementada no working tree, aguardando commit. `./mvnw clean verify` passa.
-
-### AD-013: As pastas existem e cada task se encaixa nelas
-
-- **Status:** Confirmada, incluindo a divisão das pastas.
-- **Decisão:** o projeto começa com a estrutura modelada e vazia. Nenhuma funcionalidade é adiantada: cada task traz só o que precisa e o coloca no lugar já previsto, como aconteceu com o JPA.
-- **Motivo:** o projeto será construído aos poucos, e o design anterior descrevia um sistema já pronto.
-- **Estrutura:**
-
-```
-src/main/java/br/com/mapae
-├── MapaeApplication.java
-├── conta/            dominio/  aplicacao/  web/
-├── locais/           dominio/  aplicacao/  web/
-├── amizades/         dominio/  aplicacao/  web/
-├── feed/             dominio/  aplicacao/  web/
-├── confirmacaoida/          dominio/  aplicacao/  web/
-└── compartilhado/    dominio/  erro/  seguranca/
-src/main/resources/db/migration     migrações do Flyway
-src/test/java/br/com/mapae          uma pasta por módulo
-```
-
-- **O que vai em cada pasta:**
-  - `dominio/`: entidades, regras de negócio e repositórios.
-  - `aplicacao/`: casos de uso.
-  - `web/`: controllers.
-  - `compartilhado/`: código usado por mais de um módulo.
-- **Como uma task se encaixa:**
-  - Coloque o código no módulo e na camada correspondentes.
-  - Apague o `.gitkeep` quando a pasta receber o primeiro arquivo. Ele só existe porque o git não guarda pastas vazias.
-  - Se a task criar tabela, adicione a migração junto.
-  - Registre as decisões da task neste arquivo.
-- **Consequências:**
-  - JWT, tratamento de erros, classes de domínio e endpoints da spec `estrutura-backend` viram tasks futuras.
-  - A primeira task que usar `compartilhado` por outro módulo precisa criar nele um `package-info.java` com `@ApplicationModule(type = OPEN)`, senão a verificação do Modulith acusa violação.
-  - O código saiu de `com.example`: a classe principal agora é `br.com.mapae.MapaeApplication`, e o `groupId` é `br.com.mapae`.
-
-### AD-014: Um único banco, e os 4 integrantes podem alterar tabelas e schemas
-
-- **Status:** Confirmada
-- **Decisão:** a equipe usa um único projeto privado no Supabase, com acesso restrito aos 4 integrantes. Quem mexer no código pode alterar tabelas e schemas, e o Flyway continua migrando ao subir a aplicação.
-- **Motivo:** o projeto está sendo construído agora e os 4 integrantes têm permissão para mudar o banco.
-- **Alternativa descartada:** um schema por integrante, que isolaria as mudanças, mas adicionaria configuração sem necessidade neste momento.
-- **Consequências:**
-  - Uma migração aplicada vale para todos, mesmo que a branch dela ainda não tenha passado por review.
-  - As regras da AD-008 continuam valendo: combine o número da próxima migração e nunca edite uma já aplicada. Quem quebrar essas regras pode impedir a aplicação dos outros de subir.
-  - O acesso restrito vale para o painel do Supabase. A API de dados é um ponto separado, tratado nas pendências do review.
-
-### AD-015: O frontend só consome a API do backend; só o backend acessa o banco
-
-- **Status:** Confirmada
-- **Decisão:** o fluxo é frontend → API do backend → PostgreSQL no Supabase. O frontend não se conecta ao Supabase.
-- **Motivo:** login, permissões e regras de negócio ficam em um único lugar, o backend.
-- **Consequências:**
-  - O Supabase é usado só como banco. A API de dados dele não é necessária e deve ser desativada.
-  - A chave `anon` e as credenciais do banco não devem ir para o frontend.
-  - Sem acesso direto do frontend, as tabelas não precisam de políticas de RLS para ele. O RLS fica ligado sem políticas para bloquear a API de dados (AD-024).
-  - Vale para os dados do Mapaê. Geocoding e rotas ficam com serviços externos chamados pelo app (AD-018).
-
-### AD-016: Sem conexão com banco por enquanto; só as dependências ficam
-
-- **Status:** Substituída por AD-020.
-- **Decisão:** nenhuma parte do projeto conecta em banco por enquanto, nem os testes. As dependências de JPA, Flyway, PostgreSQL e H2 continuam no `pom.xml`, e a conexão será feita em uma task própria.
-- **Motivo:** a conexão é uma etapa separada, e a estrutura zerada não deve depender dela.
-- **Como funciona:** o `application.properties` exclui as autoconfigurações de datasource, Hibernate, repositórios JPA e Flyway. Sem essa exclusão, a aplicação falha ao subir, porque não encontra um banco.
-- **O que foi removido:** as propriedades de conexão, a leitura do `.env`, o `.env.example`, a configuração de teste com H2 e o `AmbienteJpaTests`.
-- **Na task que conectar o banco:**
-  - Remova `spring.autoconfigure.exclude` do `application.properties`.
-  - Retome as AD-009 a AD-012 e as pendências do review.
-  - Desative a API de dados do Supabase antes de criar a primeira tabela (AD-015).
-  - Teste a conexão real com o Supabase, que nunca foi verificada.
-- **Consequência:** enquanto a exclusão existir, entidades, repositórios JPA e migrações não funcionam. Tasks que precisem de persistência dependem da task de conexão.
-
----
-
-## Task: Consultas geográficas (BACK-006)
-
-**Data:** 2026-11-05
-**Situação:** implementada no working tree, aguardando review e commit.
-**Verificado:** `./mvnw clean verify` com PostGIS 3.5 em Docker (29 testes). A aplicação empacotada também rodou na imagem `supabase/postgres:17.6.1.066` (PostGIS 3.3.7, usuário `postgres` sem superusuário), configurada por um `.env` copiado do `.env.example`: migrações aplicadas, segunda subida sem reaplicar nada, endpoints chamados por HTTP e os papéis `anon` e `authenticated` bloqueados sem nenhum `GRANT` manual. O banco local do `compose.yaml` também foi testado.
-**Pendente:** o teste de mutação não terminou. Restam 10 defeitos (M05 a M11 e M14 a M16); os outros 6 testavam a validação de confirmação de ida, que saiu do projeto (AD-026). A revisão independente também não foi feita.
-**Nunca verificado:** conexão completa com o Supabase real. Em 2026-11-05, o pooler `aws-1-sa-east-1` reconheceu o projeto, mas recusou a autenticação, porque o `.env` tinha a chave publishable no lugar da senha do banco. As migrações não rodaram lá.
+**Situação:** concluída e commitada (`1936201`, `fdbfb81`). Os ajustes finais da revisão (AD-028, AD-029) ficam no working tree até o próximo commit.
+**Verificado:** `./mvnw clean verify` com PostGIS 3.5 em Docker (34 testes). Teste de mutação: 10 defeitos injetados (raio, ordenação com e sem raio, ordem da listagem, par latitude/longitude, raio sem coordenadas, `truncado`, `oeste > leste`, `sul > norte`, estouro do `limite`) e os 10 foram pegos. A aplicação subiu contra o Supabase real em 2026-11-05: as migrações V1 e V2 foram aplicadas, o PostGIS 3.3.7 está no schema `extensions`, o histórico está no schema `flyway`, `public.local` tem RLS ligado e os dois endpoints respondem 200. Antes, a aplicação também rodou na imagem `supabase/postgres:17.6.1.066` e no banco local do `compose.yaml`.
+**Revisão independente:** feita em 2026-11-05 e achou um defeito, corrigido: `limite=2147483647` na área estourava o inteiro e dava erro 500. Foi adicionado um teste para isso, junto com o de `raioMetros` inválido.
+**Pendente:** nenhuma verificação. Fica para as próximas tasks: cadastro dos locais de clientes (AD-029) e paginação, se a lista crescer (AD-028).
 **Contrato com o app:** `docs/contrato-geografico.md`.
 
 ### AD-017: PostGIS com hibernate-spatial, no schema `extensions`
@@ -380,3 +303,13 @@ src/test/java/br/com/mapae          uma pasta por módulo
 - **Consequências:**
   - Sem `limite`, a resposta traz todos os locais. Com a base crescendo, isso pesa na RNF01 (3 segundos), e a equipe precisa decidir quando paginar.
   - `distanciaMetros` some da resposta quando não há coordenadas.
+
+### AD-029: Busca livre no mapa pela API; a tabela `local` guarda só locais de clientes
+
+- **Status:** Confirmada. Esclarece as AD-018 e AD-021.
+- **Decisão:** o usuário procura qualquer lugar pelo mapa do app, que usa uma API externa de mapas e geocoding, sem passar pelo backend. A tabela `local` do Mapaê não é um cadastro de todos os lugares. Ela guarda os locais de clientes, que terão promoções, anúncios e investimento no sistema, e que o backend devolve em `/api/locais/area` e `/api/locais/proximos`.
+- **Motivo:** esclarecido pelo usuário em 2026-11-05.
+- **Consequências:**
+  - A base de `local` tende a ser pequena, o que torna aceitável devolver todos os locais sem paginar (AD-028). Se a lista crescer, a paginação entra.
+  - O cadastro de locais (endereço, horário, categoria, fotos, promoções e anúncios) é uma task futura, e a AD-021 continua valendo até lá.
+  - O app deve mostrar os locais do Mapaê sobre o mapa, destacados dos demais lugares que a API de mapas exibe.

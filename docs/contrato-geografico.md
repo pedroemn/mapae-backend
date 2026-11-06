@@ -11,6 +11,8 @@ Como o app usa o mapa e a busca. As decisões e os motivos estão em `docs/decis
 | Ver os locais do Mapaê na região visível | `GET /api/locais/area` | Sim |
 | Ver os locais do Mapaê, perto de um ponto ou todos | `GET /api/locais/proximos` | Sim |
 
+Os locais que o backend devolve são os de clientes do Mapaê, os que terão promoções e anúncios (AD-029). Os demais lugares que o usuário vê no mapa vêm só da API de mapas. O app deve destacar os locais do Mapaê.
+
 Fluxo da busca livre: o app chama o provedor, recebe as coordenadas, move o mapa e chama `/api/locais/area` com a nova região visível.
 
 ## Convenções

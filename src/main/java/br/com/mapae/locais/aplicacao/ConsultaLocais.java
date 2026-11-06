@@ -53,7 +53,8 @@ public class ConsultaLocais {
     }
 
     private int limiteEfetivo(Integer limite) {
-        return limite == null ? SEM_LIMITE : limite;
+        // Teto interno só para o `limite + 1` da área não estourar o int; não é um limite de negócio.
+        return limite == null ? SEM_LIMITE : Math.min(limite, SEM_LIMITE);
     }
 
     public record ResultadoArea(List<LocalNaArea> itens, boolean truncado) {

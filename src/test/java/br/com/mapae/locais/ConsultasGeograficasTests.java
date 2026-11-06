@@ -201,6 +201,26 @@ class ConsultasGeograficasTests {
     }
 
     @Test
+    void raioInvalidoDevolve400() throws Exception {
+        for (String raio : new String[] {"0", "-5", "NaN", "abc"}) {
+            mvc.perform(get("/api/locais/proximos").param("latitude", "-10.9").param("longitude", "-37.05")
+                            .param("raioMetros", raio))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
+    void limiteGigantePodeSerUsadoNaAreaSemErro() throws Exception {
+        salvar("A", -10.95, -37.05);
+
+        mvc.perform(get("/api/locais/area").param("oeste", "-37.1").param("sul", "-11.0")
+                        .param("leste", "-37.0").param("norte", "-10.9").param("limite", "2147483647"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itens.length()").value(1))
+                .andExpect(jsonPath("$.truncado").value(false));
+    }
+
+    @Test
     void latitudeSemLongitudeDevolve400() throws Exception {
         mvc.perform(get("/api/locais/proximos").param("latitude", "-10.9"))
                 .andExpect(status().isBadRequest());
