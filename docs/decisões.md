@@ -47,6 +47,9 @@ Registro das decisões tomadas em cada task do `mapae-backend`, com o motivo de 
 | AD-027 | "Check-in" passa a se chamar "confirmação de ida" | Consultas geográficas | Confirmada |
 | AD-028 | Consultas sem limite técnico e com coordenadas opcionais | Consultas geográficas | Confirmada |
 | AD-029 | Busca livre no mapa pela API; a tabela `local` guarda só locais de clientes | Consultas geográficas | Confirmada |
+| AD-030 | Migrações com nome e timestamp; o histórico do Flyway é a tabela de migrações | Versionamento e documentação | Proposta |
+| AD-031 | Documentação da API com Swagger (springdoc-openapi) | Versionamento e documentação | Proposta |
+| AD-032 | Versionamento da API pelo caminho: `/api/v1` | Versionamento e documentação | Proposta |
 
 ---
 
@@ -313,3 +316,42 @@ O review desta task apontou os itens abaixo, atualizados na task de consultas ge
   - A base de `local` tende a ser pequena, o que torna aceitável devolver todos os locais sem paginar (AD-028). Se a lista crescer, a paginação entra.
   - O cadastro de locais (endereço, horário, categoria, fotos, promoções e anúncios) é uma task futura, e a AD-021 continua valendo até lá.
   - O app deve mostrar os locais do Mapaê sobre o mapa, destacados dos demais lugares que a API de mapas exibe.
+
+---
+
+## Task: Versionamento e documentação da API
+
+**Data:** 2026-11-07
+**Situação:** implementada no working tree, sem commit.
+**Verificado:** `./mvnw clean verify` com PostGIS em Docker (38 testes, incluindo o contrato OpenAPI, a rota sem versão devolvendo 404 e o padrão de nome das migrações).
+**Supabase:** a migração `V20261107022500` foi aplicada em 2026-11-07 pela subida da aplicação; `public.migracao` tem 3 linhas e RLS ligado. `/swagger-ui/index.html`, `/v3/api-docs` e `/api/v1/locais/proximos` responderam 200.
+
+### AD-030: Migrações com nome e timestamp; o histórico do Flyway é a tabela de migrações
+
+- **Status:** Proposta
+- **Decisão:** toda migração nova se chama `V<yyyyMMddHHmmss>__<nome_em_snake_case>.sql` (exemplo: `V20261107143000__criar_usuario.sql`) e termina com um `INSERT INTO public.migracao (nome) VALUES ('<nome do arquivo sem .sql>');`. A tabela `public.migracao` (`id`, `nome` único, `aplicada_em timestamptz`) foi criada pela `V20261107022500__criar_tabela_migracao` e já traz V1 e V2. O controle de execução continua sendo do Flyway, em `flyway.flyway_schema_history`.
+- **Motivo:** pedido da equipe para ter no banco, em `public`, um registro legível de cada migração com nome e horário. O timestamp no nome também resolve o problema da AD-008 de duas pessoas escolherem o mesmo número.
+- **Alternativa descartada:** renomear a tabela do Flyway (`spring.flyway.table`). O Supabase já tem V1 e V2 aplicadas, e o Flyway trataria o schema como sem histórico e recusaria a migração.
+- **Risco aceito:** `public.migracao` duplica informação do Flyway e só é preenchida porque cada migração se registra. `NomesDeMigracaoTests` falha se uma migração com timestamp não fizer o `INSERT`, mas uma execução fora do Flyway não preencheria a tabela.
+- **Consequências:**
+  - V1 e V2 mantêm o nome: renomear mudaria a versão e o checksum de migrações já aplicadas. Como `20261107143000` é maior que 2, a ordem se mantém.
+  - `NomesDeMigracaoTests` falha se um arquivo novo fugir do padrão. A regra "combine o próximo número" da AD-008 não vale mais.
+  - Se uma migração com timestamp menor for mesclada depois de outra maior já ter sido aplicada, o Flyway acusa migração fora de ordem. A saída é renomear a migração com um timestamp novo antes de aplicá-la.
+  - Para ver o histórico: `SELECT version, description, installed_on, success FROM flyway.flyway_schema_history ORDER BY installed_rank;`
+
+### AD-031: Documentação da API com Swagger (springdoc-openapi)
+
+- **Status:** Proposta
+- **Decisão:** `springdoc-openapi-starter-webmvc-ui` 3.2.0. A interface fica em `/swagger-ui.html` e o contrato OpenAPI em `/v3/api-docs`. Os metadados ficam em `compartilhado/openapi/OpenApiConfig`, e os controllers descrevem cada rota com `@Tag` e `@Operation`.
+- **Motivo:** o contrato sai do próprio código, então não se desatualiza em relação às rotas e serve ao frontend.
+- **Consequência:** a documentação está aberta, sem autenticação. Quando entrar o Spring Security (AD-004), decidir se ela fica pública e se ela é desligada em produção (`springdoc.api-docs.enabled=false`).
+
+### AD-032: Versionamento da API pelo caminho: `/api/v1`
+
+- **Status:** Proposta
+- **Decisão:** as rotas passam a ser `/api/v1/...`. As rotas antigas, sem versão, deixaram de existir.
+- **Motivo:** o caminho é a forma mais simples de o app e o Swagger enxergarem a versão. Não havia cliente em produção, então não houve custo de migração.
+- **Alternativa descartada:** o versionamento nativo do Spring (`spring.mvc.apiversion`), que esconde a versão do caminho e é menos direto de documentar.
+- **Consequências:**
+  - Uma mudança incompatível cria `/api/v2` e mantém a v1 pelo período combinado com o app.
+  - O app e o `docs/contrato-geografico.md` usam os novos caminhos.
