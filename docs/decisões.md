@@ -47,6 +47,15 @@ Registro das decisões tomadas em cada task do `mapae-backend`, com o motivo de 
 | AD-027 | "Check-in" passa a se chamar "confirmação de ida" | Consultas geográficas | Confirmada |
 | AD-028 | Consultas sem limite técnico e com coordenadas opcionais | Consultas geográficas | Confirmada |
 | AD-029 | Busca livre no mapa pela API; a tabela `local` guarda só locais de clientes | Consultas geográficas | Confirmada |
+| AD-030 | Migrações com nome e timestamp; o histórico do Flyway é a tabela de migrações | Versionamento e documentação | Proposta |
+| AD-031 | Documentação da API com Swagger (springdoc-openapi) | Versionamento e documentação | Proposta |
+| AD-032 | Versionamento da API pelo caminho: `/api/v1` | Versionamento e documentação | Proposta |
+| AD-033 | Conta da loja na própria tabela `local`, com posição opcional | Contas e login | Confirmada |
+| AD-034 | Senha só como hash BCrypt; servidor define perfil, status e primeiro acesso | Contas e login | Proposta |
+| AD-035 | Login por email ou username, com rotas separadas para usuário e loja | Contas e login | Confirmada |
+| AD-036 | JWT HS256 com Nimbus, validade de 24 h e segredo obrigatório | Contas e login | Proposta |
+| AD-037 | Só `/api/v1/contas/**` exige token; as outras rotas continuam públicas | Contas e login | Proposta |
+| AD-038 | `/api/v1/contas/eu` atende usuário e loja pela porta `ProvedorDeConta` | Contas e login | Proposta |
 
 ---
 
@@ -313,3 +322,112 @@ O review desta task apontou os itens abaixo, atualizados na task de consultas ge
   - A base de `local` tende a ser pequena, o que torna aceitável devolver todos os locais sem paginar (AD-028). Se a lista crescer, a paginação entra.
   - O cadastro de locais (endereço, horário, categoria, fotos, promoções e anúncios) é uma task futura, e a AD-021 continua valendo até lá.
   - O app deve mostrar os locais do Mapaê sobre o mapa, destacados dos demais lugares que a API de mapas exibe.
+
+---
+
+## Task: Versionamento e documentação da API
+
+**Data:** 2026-11-07
+**Situação:** implementada no working tree, sem commit.
+**Verificado:** `./mvnw clean verify` com PostGIS em Docker (38 testes, incluindo o contrato OpenAPI, a rota sem versão devolvendo 404 e o padrão de nome das migrações).
+**Supabase:** a migração `V20261107022500` foi aplicada em 2026-11-07 pela subida da aplicação; `public.migracao` tem 3 linhas e RLS ligado. `/swagger-ui/index.html`, `/v3/api-docs` e `/api/v1/locais/proximos` responderam 200.
+
+### AD-030: Migrações com nome e timestamp; o histórico do Flyway é a tabela de migrações
+
+- **Status:** Proposta
+- **Decisão:** toda migração nova se chama `V<yyyyMMddHHmmss>__<nome_em_snake_case>.sql` (exemplo: `V20261107143000__criar_usuario.sql`) e termina com um `INSERT INTO public.migracao (nome) VALUES ('<nome do arquivo sem .sql>');`. A tabela `public.migracao` (`id`, `nome` único, `aplicada_em timestamptz`) foi criada pela `V20261107022500__criar_tabela_migracao` e já traz V1 e V2. O controle de execução continua sendo do Flyway, em `flyway.flyway_schema_history`.
+- **Motivo:** pedido da equipe para ter no banco, em `public`, um registro legível de cada migração com nome e horário. O timestamp no nome também resolve o problema da AD-008 de duas pessoas escolherem o mesmo número.
+- **Alternativa descartada:** renomear a tabela do Flyway (`spring.flyway.table`). O Supabase já tem V1 e V2 aplicadas, e o Flyway trataria o schema como sem histórico e recusaria a migração.
+- **Risco aceito:** `public.migracao` duplica informação do Flyway e só é preenchida porque cada migração se registra. `NomesDeMigracaoTests` falha se uma migração com timestamp não fizer o `INSERT`, mas uma execução fora do Flyway não preencheria a tabela.
+- **Consequências:**
+  - V1 e V2 mantêm o nome: renomear mudaria a versão e o checksum de migrações já aplicadas. Como `20261107143000` é maior que 2, a ordem se mantém.
+  - `NomesDeMigracaoTests` falha se um arquivo novo fugir do padrão. A regra "combine o próximo número" da AD-008 não vale mais.
+  - Se uma migração com timestamp menor for mesclada depois de outra maior já ter sido aplicada, o Flyway acusa migração fora de ordem. A saída é renomear a migração com um timestamp novo antes de aplicá-la.
+  - Para ver o histórico: `SELECT version, description, installed_on, success FROM flyway.flyway_schema_history ORDER BY installed_rank;`
+
+### AD-031: Documentação da API com Swagger (springdoc-openapi)
+
+- **Status:** Proposta
+- **Decisão:** `springdoc-openapi-starter-webmvc-ui` 3.2.0. A interface fica em `/swagger-ui.html` e o contrato OpenAPI em `/v3/api-docs`. Os metadados ficam em `compartilhado/openapi/OpenApiConfig`, e os controllers descrevem cada rota com `@Tag` e `@Operation`.
+- **Motivo:** o contrato sai do próprio código, então não se desatualiza em relação às rotas e serve ao frontend.
+- **Consequência:** a documentação está aberta, sem autenticação. Quando entrar o Spring Security (AD-004), decidir se ela fica pública e se ela é desligada em produção (`springdoc.api-docs.enabled=false`).
+
+### AD-032: Versionamento da API pelo caminho: `/api/v1`
+
+- **Status:** Proposta
+- **Decisão:** as rotas passam a ser `/api/v1/...`. As rotas antigas, sem versão, deixaram de existir.
+- **Motivo:** o caminho é a forma mais simples de o app e o Swagger enxergarem a versão. Não havia cliente em produção, então não houve custo de migração.
+- **Alternativa descartada:** o versionamento nativo do Spring (`spring.mvc.apiversion`), que esconde a versão do caminho e é menos direto de documentar.
+- **Consequências:**
+  - Uma mudança incompatível cria `/api/v2` e mantém a v1 pelo período combinado com o app.
+  - O app e o `docs/contrato-geografico.md` usam os novos caminhos.
+
+---
+
+## Task: Contas e login
+
+**Data:** 2026-11-11
+**Situação:** implementada no working tree, sem commit (AD-001). Spec, design e tasks em `.specs/features/conta-e-login/`.
+**Verificado:** `./mvnw verify` com PostGIS em Docker: 153 testes, 115 deles novos (38 antes da task).
+**Supabase:** a migração `V20261111103000__criar_contas` foi aplicada em 2026-11-11. A tabela `usuario` existe com RLS ligado, `local.posicao` aceita nulo e os quatro índices únicos foram criados. A aplicação que estava rodando com devtools reiniciou sozinha quando os testes compilaram e aplicou a migração durante a execução dos testes. O arquivo aplicado é o mesmo que passou nos testes.
+
+### AD-033: Conta da loja na própria tabela `local`, com posição opcional
+
+- **Status:** Confirmada (escolha do usuário em 2026-11-11)
+- **Decisão:** as colunas de conta (`username`, `email`, `cep`, `tipo`, `senha_hash`, `primeiro_acesso`, `status`, `tipo_perfil`, `criado_em`, `atualizado_em`) entram na tabela `local`. `posicao` passa a aceitar nulo.
+- **Motivo:** a loja é o próprio local de cliente (AD-029); uma tabela à parte duplicaria nome e identidade.
+- **Consequências:**
+  - As colunas de conta são opcionais, para preservar os locais criados antes delas. Um CHECK exige que, se o local tem senha, tenha todos os dados de conta, e que um local sem conta tenha posição.
+  - A loja recém-cadastrada não aparece em `/api/v1/locais/area` nem em `/api/v1/locais/proximos` até ter posição. As consultas filtram `posicao IS NOT NULL`.
+  - Substitui a AD-021 quanto às colunas de `local`.
+
+### AD-034: Senha só como hash BCrypt; servidor define perfil, status e primeiro acesso
+
+- **Status:** Proposta
+- **Decisão:** a lista da task tinha "senha" e "password hash"; só `senha_hash` (BCrypt) é gravado, e nenhuma resposta traz a senha ou o hash. O cadastro de usuário gera `tipo_perfil = USUARIO` e o de loja gera `LOJA`. Toda conta nasce `ATIVO` e com `primeiro_acesso = true`. `criado_em` e `atualizado_em` são do servidor. Campos com esses nomes no corpo da requisição são ignorados.
+- **Valores:** `status` em `ATIVO`, `INATIVO` e `BLOQUEADO`. `genero` (só do usuário) em `FEMININO`, `MASCULINO`, `NAO_BINARIO`, `OUTRO` e `PREFIRO_NAO_INFORMAR`. `tipo` da loja é texto livre opcional.
+- **Formatos:** username de 3 a 30 caracteres (`a-z`, `0-9`, `.`, `_`); email e username guardados em minúsculas e únicos por tabela, sem diferenciar maiúsculas; CEP com 8 dígitos (aceito com hífen); senha de 8 caracteres a 72 bytes em UTF-8 (limite do BCrypt; letra acentuada conta 2 bytes); data de nascimento em `AAAA-MM-DD` e anterior a hoje.
+- **Motivo:** guardar senha em texto é falha de segurança; o perfil vindo do cliente permitiria a um usuário se cadastrar como loja.
+
+### AD-035: Login por email ou username, com rotas separadas para usuário e loja
+
+- **Status:** Confirmada (escolha do usuário em 2026-11-11)
+- **Decisão:** `POST /api/v1/auth/usuarios/login` e `POST /api/v1/auth/lojas/login` recebem `login` (email ou username, sem diferenciar maiúsculas) e `senha`.
+- **Regras:** login inexistente e senha errada dão o mesmo 401. Senha certa em conta `INATIVO` ou `BLOQUEADO` dá 403, com `statusConta`, sem token. Um usuário pela rota da loja, ou o contrário, dá 401.
+- **Consequência:** o mesmo email pode existir como usuário e como loja, porque cada um entra pela sua rota.
+
+### AD-036: JWT HS256 com Nimbus, validade de 24 h e segredo obrigatório
+
+- **Status:** Proposta. Implementa a AD-004.
+- **Decisão:** `spring-boot-starter-security` e `spring-boot-starter-oauth2-resource-server`, que já trazem o Nimbus para emitir e validar o HS256. O token leva o id da conta no `sub` e o perfil na claim `perfil`. O segredo vem de `MAPAE_JWT_SEGREDO`, com pelo menos 32 caracteres; sem ele a aplicação não sobe. A validade vem de `MAPAE_JWT_VALIDADE` (padrão 24h).
+- **Consequências:**
+  - Cada integrante precisa de `MAPAE_JWT_SEGREDO` no seu `.env` (ver `.env.example`). Os testes usam um segredo fixo em `src/test/resources/config/application.properties`.
+  - Trocar o segredo invalida todos os tokens emitidos.
+
+### AD-037: Só `/api/v1/contas/**` exige token; as outras rotas continuam públicas
+
+- **Status:** Proposta
+- **Decisão:** o filtro do Spring Security protege só as rotas da conta autenticada. Cadastro, login, Swagger e as consultas de `/api/v1/locais` continuam públicos. Token ausente, inválido ou expirado nas rotas protegidas dá 401 em Problem Details.
+- **Motivo:** proteger tudo por padrão mudaria o comportamento das rotas existentes (por exemplo, uma rota inexistente passaria de 404 para 401) e quebraria testes já aprovados.
+- **Consequência:** cada task futura precisa incluir as suas rotas no filtro; esquecer deixa a rota aberta. A alternativa, negar tudo por padrão, fica para a equipe decidir. Também responde à pendência da AD-031: o Swagger continua público.
+
+### AD-038: `/api/v1/contas/eu` atende usuário e loja pela porta `ProvedorDeConta`
+
+- **Status:** Proposta
+- **Decisão:** `compartilhado/seguranca` define a interface `ProvedorDeConta`, que `ContasDeUsuario` (módulo `conta`) e `ContasDeLoja` (módulo `locais`) implementam. O `ContaController` escolhe o provedor pelo perfil do token. `compartilhado` passou a ser um módulo aberto (`Type.OPEN`), como previa a AD-005.
+- **Motivo:** `conta` não depende de `locais`, e o Spring Modulith continua validando as fronteiras.
+- **Rotas:** `GET /api/v1/contas/eu`; `POST /api/v1/contas/eu/primeiro-acesso/conclusao` (204, idempotente, sem mexer em `atualizado_em` na segunda vez); `PUT /api/v1/contas/eu/senha` (exige a senha atual; errada dá 400).
+
+
+### AD-039: CORS liberado só para as origens do front, configuráveis por ambiente
+
+- **Status:** Proposta
+- **Decisão:** o `SegurancaConfig` liga o CORS do Spring Security para `/api/**`. As origens vêm de `MAPAE_CORS_ORIGENS` (lista separada por vírgula); sem ela, valem `http://localhost:3000` e `http://localhost:5173`, as portas mais comuns de um front web rodando local. Métodos liberados: GET, POST, PUT, PATCH, DELETE e OPTIONS. Cabeçalhos liberados: `Authorization` e `Content-Type`. O navegador guarda a resposta do pré-voo por 1 hora.
+- **Motivo:** um front web em outro endereço (porta, domínio ou protocolo) só consegue ler as respostas da API se ela autorizar a origem; sem isso, o navegador bloqueia as chamadas. App mobile nativo, Postman e o Swagger não passam por essa regra.
+- **Sem credenciais de navegador:** o token vai no cabeçalho `Authorization` (AD-004), e não em cookie, então `allowCredentials` fica desligado.
+- **Alternativa descartada:** liberar qualquer origem (`*`). Funciona, mas deixa qualquer site chamar a API pelo navegador de quem está logado; listar as origens custa pouco.
+- **Consequências:**
+  - Em produção, `MAPAE_CORS_ORIGENS` precisa ter o endereço do front publicado, sem barra no final (ver `.env.example`). Se o front rodar em outra porta local, basta definir a variável.
+  - O pré-voo (`OPTIONS`) das rotas protegidas passa sem token, e o 401 dessas rotas leva o cabeçalho CORS, para o front conseguir ler o erro e voltar ao login.
+  - Origem fora da lista recebe 403 no pré-voo.
+  - `CorsTests` cobre o pré-voo do login, o pré-voo de rota protegida, o 401 com cabeçalho CORS e a origem recusada.

@@ -4,6 +4,8 @@ import br.com.mapae.locais.aplicacao.ConsultaLocais;
 import br.com.mapae.locais.dominio.LocalRepository.LocalNaArea;
 import br.com.mapae.locais.dominio.LocalRepository.LocalProximo;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -15,7 +17,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/locais")
+@Tag(name = "Locais", description = "Consultas geográficas dos locais de clientes do Mapaê")
+@RequestMapping("/api/v1/locais")
 public class LocaisGeograficosController {
 
     private final ConsultaLocais consulta;
@@ -24,6 +27,8 @@ public class LocaisGeograficosController {
         this.consulta = consulta;
     }
 
+    @Operation(summary = "Locais dentro da região visível do mapa",
+            description = "Caixa em latitude/longitude. `truncado` indica que o `limite` cortou o resultado.")
     @GetMapping("/area")
     public AreaResponse area(
             @RequestParam @DecimalMin("-180") @DecimalMax("180") double oeste,
@@ -35,6 +40,8 @@ public class LocaisGeograficosController {
         return new AreaResponse(resultado.itens().stream().map(LocalResponse::de).toList(), resultado.truncado());
     }
 
+    @Operation(summary = "Locais perto de um ponto, ou todos",
+            description = "Sem coordenadas lista todos por id; com coordenadas ordena por distância. O raio só filtra se informado.")
     @GetMapping("/proximos")
     public ProximosResponse proximos(
             @RequestParam(required = false) @DecimalMin("-90") @DecimalMax("90") Double latitude,

@@ -8,12 +8,12 @@ Como o app usa o mapa e a busca. As decisões e os motivos estão em `docs/decis
 | -------------- | ------------ | ------------------- |
 | Buscar qualquer lugar ou endereço no mapa | Provedor externo de geocoding, chamado pelo app | Não |
 | Traçar uma rota | App de mapas do aparelho, aberto por link | Não |
-| Ver os locais do Mapaê na região visível | `GET /api/locais/area` | Sim |
-| Ver os locais do Mapaê, perto de um ponto ou todos | `GET /api/locais/proximos` | Sim |
+| Ver os locais do Mapaê na região visível | `GET /api/v1/locais/area` | Sim |
+| Ver os locais do Mapaê, perto de um ponto ou todos | `GET /api/v1/locais/proximos` | Sim |
 
 Os locais que o backend devolve são os de clientes do Mapaê, os que terão promoções e anúncios (AD-029). Os demais lugares que o usuário vê no mapa vêm só da API de mapas. O app deve destacar os locais do Mapaê.
 
-Fluxo da busca livre: o app chama o provedor, recebe as coordenadas, move o mapa e chama `/api/locais/area` com a nova região visível.
+Fluxo da busca livre: o app chama o provedor, recebe as coordenadas, move o mapa e chama `/api/v1/locais/area` com a nova região visível.
 
 ## Convenções
 
@@ -21,7 +21,7 @@ Fluxo da busca livre: o app chama o provedor, recebe as coordenadas, move o mapa
 - Distâncias em metros.
 - Erros seguem o formato Problem Details (RFC 9457), com `status`, `title` e `detail`.
 
-## `GET /api/locais/area`
+## `GET /api/v1/locais/area`
 
 Locais dentro da caixa da região visível, com as bordas incluídas e ordenados por `id`.
 
@@ -44,7 +44,7 @@ Locais dentro da caixa da região visível, com as bordas incluídas e ordenados
 
 Uma caixa que cruza o meridiano de 180° não é aceita. Isso não afeta Aracaju.
 
-## `GET /api/locais/proximos`
+## `GET /api/v1/locais/proximos`
 
 Locais do Mapaê, com ou sem ponto de referência. Todos os parâmetros são opcionais, então o usuário pode consultar de qualquer lugar.
 
@@ -85,4 +85,4 @@ As consultas não têm limite técnico de raio nem de quantidade (AD-028). `limi
 ## Cuidados
 
 - **Os endpoints ainda estão abertos.** Não há autenticação nem limite de requisições, porque o JWT (AD-004) é uma task futura.
-- **Posição é dado pessoal (LGPD).** O backend não registra coordenadas em log. Como `/api/locais/proximos` leva a posição na URL, os logs de acesso de proxy ou de hospedagem não devem gravar a query string.
+- **Posição é dado pessoal (LGPD).** O backend não registra coordenadas em log. Como `/api/v1/locais/proximos` leva a posição na URL, os logs de acesso de proxy ou de hospedagem não devem gravar a query string.

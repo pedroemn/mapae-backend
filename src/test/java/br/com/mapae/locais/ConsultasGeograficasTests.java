@@ -40,7 +40,7 @@ class ConsultasGeograficasTests {
 
     private org.springframework.test.web.servlet.ResultActions area(String oeste, String sul, String leste,
                                                                     String norte) throws Exception {
-        return mvc.perform(get("/api/locais/area")
+        return mvc.perform(get("/api/v1/locais/area")
                 .param("oeste", oeste).param("sul", sul).param("leste", leste).param("norte", norte));
     }
 
@@ -85,7 +85,7 @@ class ConsultasGeograficasTests {
         salvar("B", -10.95, -37.04);
         salvar("C", -10.95, -37.03);
 
-        mvc.perform(get("/api/locais/area").param("oeste", "-37.1").param("sul", "-11.0")
+        mvc.perform(get("/api/v1/locais/area").param("oeste", "-37.1").param("sul", "-11.0")
                         .param("leste", "-37.0").param("norte", "-10.9").param("limite", "1"))
                 .andExpect(jsonPath("$.itens.length()").value(1))
                 .andExpect(jsonPath("$.itens[0].id").value(primeiro.getId()))
@@ -97,7 +97,7 @@ class ConsultasGeograficasTests {
         salvar("A", -10.95, -37.05);
         salvar("B", -10.95, -37.04);
 
-        mvc.perform(get("/api/locais/area").param("oeste", "-37.1").param("sul", "-11.0")
+        mvc.perform(get("/api/v1/locais/area").param("oeste", "-37.1").param("sul", "-11.0")
                         .param("leste", "-37.0").param("norte", "-10.9").param("limite", "2"))
                 .andExpect(jsonPath("$.itens.length()").value(2))
                 .andExpect(jsonPath("$.truncado").value(false));
@@ -130,7 +130,7 @@ class ConsultasGeograficasTests {
         Local perto = salvar("Perto", LAT + 0.001, LNG);
         salvar("Fora do raio", LAT + 0.01, LNG);
 
-        mvc.perform(get("/api/locais/proximos").param("latitude", String.valueOf(LAT))
+        mvc.perform(get("/api/v1/locais/proximos").param("latitude", String.valueOf(LAT))
                         .param("longitude", String.valueOf(LNG)).param("raioMetros", "500"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.itens.length()").value(2))
@@ -148,7 +148,7 @@ class ConsultasGeograficasTests {
         Local perto = salvar("Perto", LAT + 0.001, LNG);
         salvar("Longe", LAT + 0.002, LNG);
 
-        mvc.perform(get("/api/locais/proximos").param("latitude", String.valueOf(LAT))
+        mvc.perform(get("/api/v1/locais/proximos").param("latitude", String.valueOf(LAT))
                         .param("longitude", String.valueOf(LNG)).param("raioMetros", "500").param("limite", "1"))
                 .andExpect(jsonPath("$.itens.length()").value(1))
                 .andExpect(jsonPath("$.itens[0].id").value(perto.getId()));
@@ -158,7 +158,7 @@ class ConsultasGeograficasTests {
     void proximosNaoTemRaioMaximo() throws Exception {
         Local longe = salvar("Longe", LAT + 5, LNG);
 
-        mvc.perform(get("/api/locais/proximos").param("latitude", String.valueOf(LAT))
+        mvc.perform(get("/api/v1/locais/proximos").param("latitude", String.valueOf(LAT))
                         .param("longitude", String.valueOf(LNG)).param("raioMetros", "5000000"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.itens[0].id").value(longe.getId()));
@@ -169,7 +169,7 @@ class ConsultasGeograficasTests {
         Local longe = salvar("Longe", LAT + 5, LNG);
         Local perto = salvar("Perto", LAT + 0.001, LNG);
 
-        mvc.perform(get("/api/locais/proximos").param("latitude", String.valueOf(LAT))
+        mvc.perform(get("/api/v1/locais/proximos").param("latitude", String.valueOf(LAT))
                         .param("longitude", String.valueOf(LNG)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.itens.length()").value(2))
@@ -183,7 +183,7 @@ class ConsultasGeograficasTests {
         Local primeiro = salvar("A", LAT, LNG);
         Local segundo = salvar("B", LAT + 20, LNG + 20);
 
-        mvc.perform(get("/api/locais/proximos"))
+        mvc.perform(get("/api/v1/locais/proximos"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.itens.length()").value(2))
                 .andExpect(jsonPath("$.itens[0].id").value(primeiro.getId()))
@@ -195,7 +195,7 @@ class ConsultasGeograficasTests {
     void limiteNaoTemMaximo() throws Exception {
         salvar("A", LAT, LNG);
 
-        mvc.perform(get("/api/locais/proximos").param("limite", "100000"))
+        mvc.perform(get("/api/v1/locais/proximos").param("limite", "100000"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.itens.length()").value(1));
     }
@@ -203,7 +203,7 @@ class ConsultasGeograficasTests {
     @Test
     void raioInvalidoDevolve400() throws Exception {
         for (String raio : new String[] {"0", "-5", "NaN", "abc"}) {
-            mvc.perform(get("/api/locais/proximos").param("latitude", "-10.9").param("longitude", "-37.05")
+            mvc.perform(get("/api/v1/locais/proximos").param("latitude", "-10.9").param("longitude", "-37.05")
                             .param("raioMetros", raio))
                     .andExpect(status().isBadRequest());
         }
@@ -213,7 +213,7 @@ class ConsultasGeograficasTests {
     void limiteGigantePodeSerUsadoNaAreaSemErro() throws Exception {
         salvar("A", -10.95, -37.05);
 
-        mvc.perform(get("/api/locais/area").param("oeste", "-37.1").param("sul", "-11.0")
+        mvc.perform(get("/api/v1/locais/area").param("oeste", "-37.1").param("sul", "-11.0")
                         .param("leste", "-37.0").param("norte", "-10.9").param("limite", "2147483647"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.itens.length()").value(1))
@@ -222,19 +222,19 @@ class ConsultasGeograficasTests {
 
     @Test
     void latitudeSemLongitudeDevolve400() throws Exception {
-        mvc.perform(get("/api/locais/proximos").param("latitude", "-10.9"))
+        mvc.perform(get("/api/v1/locais/proximos").param("latitude", "-10.9"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void raioSemCoordenadasDevolve400() throws Exception {
-        mvc.perform(get("/api/locais/proximos").param("raioMetros", "100"))
+        mvc.perform(get("/api/v1/locais/proximos").param("raioMetros", "100"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void limiteMenorQueUmDevolve400() throws Exception {
-        mvc.perform(get("/api/locais/proximos").param("latitude", "-10.9").param("longitude", "-37.05")
+        mvc.perform(get("/api/v1/locais/proximos").param("latitude", "-10.9").param("longitude", "-37.05")
                         .param("raioMetros", "100").param("limite", "0"))
                 .andExpect(status().isBadRequest());
     }
@@ -242,7 +242,7 @@ class ConsultasGeograficasTests {
     @ParameterizedTest
     @ValueSource(strings = {"90.1", "-90.1", "NaN", "Infinity", "abc"})
     void latitudeInvalidaDevolve400(String latitude) throws Exception {
-        mvc.perform(get("/api/locais/proximos").param("latitude", latitude).param("longitude", "-37.05")
+        mvc.perform(get("/api/v1/locais/proximos").param("latitude", latitude).param("longitude", "-37.05")
                         .param("raioMetros", "100"))
                 .andExpect(status().isBadRequest());
     }
@@ -250,7 +250,7 @@ class ConsultasGeograficasTests {
     @ParameterizedTest
     @ValueSource(strings = {"180.1", "-180.1", "NaN"})
     void longitudeInvalidaDevolve400(String longitude) throws Exception {
-        mvc.perform(get("/api/locais/proximos").param("latitude", "-10.9").param("longitude", longitude)
+        mvc.perform(get("/api/v1/locais/proximos").param("latitude", "-10.9").param("longitude", longitude)
                         .param("raioMetros", "100"))
                 .andExpect(status().isBadRequest());
     }

@@ -31,6 +31,13 @@
 - **AD-025** (2026-11-05): Substituída por AD-026. `confirmacaoida` usava `locais` pela interface pública `ConsultaDistanciaLocal`.
 - **AD-027** (2026-11-05): "Check-in" passa a se chamar "confirmação de ida"; módulo `confirmacaoida`.
 - **AD-026** (2026-11-05): A confirmação de ida é feita de qualquer lugar, sem validação de localização. A equipe precisa decidir como o Gerômetro conta essas confirmações de ida.
+- **AD-033** (2026-11-11): Conta da loja na tabela `local`; `posicao` opcional e consultas do mapa filtram `posicao IS NOT NULL`. Substitui AD-021 quanto às colunas.
+- **AD-034** (2026-11-11, proposta): Só `senha_hash` BCrypt; servidor define `tipo_perfil`, `status` (ATIVO/INATIVO/BLOQUEADO), `primeiro_acesso` e datas.
+- **AD-035** (2026-11-11): Login por email ou username; rotas separadas para usuário e loja; 401 igual para login e senha errados; 403 para conta não ATIVO.
+- **AD-036** (2026-11-11, proposta): JWT HS256 via oauth2-resource-server (Nimbus); `sub` = id, claim `perfil`; segredo obrigatório `MAPAE_JWT_SEGREDO`, validade 24h.
+- **AD-037** (2026-11-11, proposta): Só `/api/v1/contas/**` exige token; cada task futura protege as suas rotas no `SegurancaConfig`.
+- **AD-038** (2026-11-11, proposta): `/contas/eu` usa a porta `ProvedorDeConta` em `compartilhado` (módulo OPEN), sem `conta` depender de `locais`.
+- **AD-039** (2026-11-12, proposta): CORS para `/api/**` com origens de `MAPAE_CORS_ORIGENS` (padrão localhost:3000 e 5173); só `Authorization` e `Content-Type`, sem cookies.
 
 ## Referências
 
@@ -40,5 +47,6 @@
 
 ## Handoff
 
-- Feature `consultas-geograficas` (BACK-006): concluída e verificada (34 testes, 10 mutantes pegos, migrações V1 e V2 aplicadas no Supabase). Relatório em `.specs/features/consultas-geograficas/validation.md`. Branch `ConsultasGeog`; os ajustes finais (correção do estouro de `limite`, AD-028, AD-029) estão no working tree, aguardando commit (AD-001).
-- Próximas tasks: cadastro de locais de clientes (AD-029), login (AD-004) e registro da confirmação de ida (AD-026).
+- Feature `conta-e-login`: T1 a T8 implementadas no working tree, sem commit (AD-001); 159 testes passando com `./mvnw test` (inclui CORS, AD-039); Verificador PASS na iteração 3 (2026-11-12). Migração `V20261111103000__criar_contas` aplicada no Supabase em 2026-11-11 (não alterar o arquivo: o checksum já está gravado). Relatório do Verificador em `.specs/features/conta-e-login/validation.md`.
+- `MAPAE_JWT_SEGREDO` foi gerado no `.env` local; cada integrante precisa do seu.
+- Próximas tasks: cadastro de locais de clientes com posição (AD-029) e registro da confirmação de ida (AD-026), que agora pode usar o token.
