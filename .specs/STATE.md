@@ -43,6 +43,12 @@
 - **AD-042** (2026-11-12): Paginação `pagina` (0, máx. 21474836) e `tamanho` (20, máx. 100) com `{numero, tamanho, totalItens, totalPaginas}`; opcional na `/area`, sempre na `/pesquisa`.
 - **AD-043** (2026-11-12, proposta): Pesquisa por trecho de nome/categoria/termos e categoria por igualdade, sem maiúsculas nem acentos; curingas literais; ordem por nome.
 - **AD-044** (2026-11-12): `software.amazon.awssdk:s3` restaurada no `pom.xml` (perdida no merge 45ff2d0); variáveis do R2 documentadas no `.env.example`.
+- **AD-045** (2026-11-12): Categorias fixas (`bar`, `restaurante`, `cafe`, `padaria`, `lanchonete`, `balada`, `evento`, `outro`) no enum `Categoria` e no CHECK `ck_local_categoria`; categoria desconhecida dá 400.
+- **AD-046** (2026-11-12, proposta): `faixa_preco` 1 a 4; filtro `preco` multivalorado.
+- **AD-047** (2026-11-12, proposta): `abre`/`fecha` diários, vira a meia-noite, `abre = fecha` é 24 h; `abertoAgora` no fuso `America/Maceio`, hora enviada como texto.
+- **AD-048** (2026-11-12, proposta): Distância na pesquisa com `latitude`/`longitude` e `raioMetros` (1 a 100000); sem origem, sem distância e raio dá 400.
+- **AD-049** (2026-11-12, proposta): Busca por palavras em qualquer ordem, sem palavras de ligação, plural simples, `pg_trgm` para erro de digitação, sinônimos de categoria e ordem por relevância.
+- **AD-050** (2026-11-12, proposta): `tipo` da loja só aceita categoria da lista e grava o código em `tipo` e `categoria`.
 
 ## Referências
 
@@ -51,6 +57,8 @@
 - Visão do produto, requisitos, escopo do MVP e cronograma: `docs/visao-do-produto.md`.
 
 ## Handoff
+
+- Feature `filtros-de-locais` (BACK-024): implementada na branch `PesquisaLocais`, sem commit (AD-001); 283 testes passando; Verificador PASS na iteração 3 (2026-11-12), relatório em `.specs/features/filtros-de-locais/validation.md`. Migração `V20261112150000__filtros_de_locais` ainda não aplicada no Supabase. Front do cadastro de loja precisa oferecer a lista de categorias (AD-050).
 
 - Feature `locais-mapa-e-pesquisa` (BACK-022 e BACK-023): implementada na branch `PesquisaLocais`, sem commit (AD-001); 219 testes passando; Verificador PASS na iteração 2 (2026-11-12). Premissa a confirmar com a equipe: loja bloqueada ou inativa fica fora do catálogo. Migração `V20261112060000__catalogo_de_locais` ainda não aplicada no Supabase. Relatório do Verificador em `.specs/features/locais-mapa-e-pesquisa/validation.md`.
 - A `main` não compilava (dependência do R2 perdida no merge); corrigido nesta branch (AD-044). Para subir a aplicação, o `.env` precisa das variáveis `CLOUDFLARE_*`.

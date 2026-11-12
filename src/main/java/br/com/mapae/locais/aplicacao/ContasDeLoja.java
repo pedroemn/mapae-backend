@@ -7,6 +7,7 @@ import br.com.mapae.compartilhado.seguranca.ContaDuplicadaException;
 import br.com.mapae.compartilhado.seguranca.DadosDeAcesso;
 import br.com.mapae.compartilhado.seguranca.ProvedorDeConta;
 import br.com.mapae.compartilhado.seguranca.TipoPerfil;
+import br.com.mapae.locais.dominio.Categoria;
 import br.com.mapae.locais.dominio.Local;
 import br.com.mapae.locais.dominio.LocalRepository;
 import java.util.Optional;
@@ -48,10 +49,18 @@ public class ContasDeLoja implements ProvedorDeConta {
         if (locais.existsByAcessoEmail(email)) {
             throw new ContaDuplicadaException("email");
         }
-        String tipo = nova.tipo() == null || nova.tipo().isBlank() ? null : nova.tipo().trim();
-        Local loja = Local.loja(username, nova.nome().trim(), email, Cadastro.cepSoDigitos(nova.cep()), tipo,
+        Categoria categoria = categoriaDoTipo(nova.tipo());
+        Local loja = Local.loja(username, nova.nome().trim(), email, Cadastro.cepSoDigitos(nova.cep()), categoria,
                 senhas.encode(nova.senha()));
         return Cadastro.salvarSemDuplicar(() -> locais.saveAndFlush(loja), "uq_local_username", "uq_local_email");
+    }
+
+    /** Tipo vazio fica sem categoria; outro valor precisa ser uma categoria da lista (LOJA-02). */
+    private static Categoria categoriaDoTipo(String tipo) {
+        if (tipo == null || tipo.isBlank()) {
+            return null;
+        }
+        return Categoria.de(tipo).orElseThrow(TipoDeLojaInvalidoException::new);
     }
 
     @Override

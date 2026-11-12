@@ -34,4 +34,15 @@ final class CatalogoDeTeste {
     long ativo(String nome, String categoria, String termos, double latitude, double longitude) {
         return local(nome, categoria, termos, true, latitude, longitude);
     }
+
+    /**
+     * Preço e horário de um local já inserido (BACK-024).
+     *
+     * @param abre  "HH:mm" ou nulo
+     * @param fecha "HH:mm" ou nulo
+     */
+    void detalhes(long id, Integer faixaPreco, String abre, String fecha) {
+        jdbc.update("UPDATE local SET faixa_preco = ?, abre = CAST(? AS time), fecha = CAST(? AS time) WHERE id = ?",
+                faixaPreco, abre, fecha, id);
+    }
 }

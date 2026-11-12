@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "promote_threshold": 2,
+  "window_days": 45,
+  "quarantine_threshold": 2,
+  "next_id": 6,
+  "lessons": [
+    {
+      "id": "L-001",
+      "key": "surviving_mutant::teste cada borda de horario abertura inclusiva e fechamento exclusivo em todos os ramos da regra inclusive no que vira a meia noite",
+      "text": "Teste cada borda de horario (abertura inclusiva e fechamento exclusivo) em todos os ramos da regra, inclusive no que vira a meia-noite",
+      "signal": "surviving_mutant",
+      "scope": "locais",
+      "status": "candidate",
+      "features": [
+        "filtros-de-locais"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M04 LocalRepository.java:72; M07 LocalRepository.java:73 (locais)"
+      ],
+      "created": "2026-11-12T08:48:57Z",
+      "last_seen": "2026-11-12T08:48:57Z"
+    },
+    {
+      "id": "L-002",
+      "key": "surviving_mutant::rode os testes com o fuso da jvm diferente do fuso de negocio para provar que o codigo nao depende do fuso padrao",
+      "text": "Rode os testes com o fuso da JVM diferente do fuso de negocio para provar que o codigo nao depende do fuso padrao",
+      "signal": "surviving_mutant",
+      "scope": "testes",
+      "status": "candidate",
+      "features": [
+        "filtros-de-locais"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M03 PesquisaLocais.java:28 (testes)"
+      ],
+      "created": "2026-11-12T08:48:57Z",
+      "last_seen": "2026-11-12T08:48:57Z"
+    },
+    {
+      "id": "L-003",
+      "key": "ac_gap::teste o limite numerico exato que a spec define como o tamanho minimo de palavra com um caso na borda",
+      "text": "Teste o limite numerico exato que a spec define (como o tamanho minimo de palavra) com um caso na borda",
+      "signal": "ac_gap",
+      "scope": "locais",
+      "status": "candidate",
+      "features": [
+        "filtros-de-locais"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "ACHAR-04 Categoria.java:71 (locais)"
+      ],
+      "created": "2026-11-12T08:48:58Z",
+      "last_seen": "2026-11-12T08:48:58Z"
+    },
+    {
+      "id": "L-004",
+      "key": "spec_precision_gap::defina na spec se o casamento de texto e por palavra inteira prefixo ou trecho com o tamanho minimo",
+      "text": "Defina na spec se o casamento de texto e por palavra inteira, prefixo ou trecho, com o tamanho minimo",
+      "signal": "spec_precision_gap",
+      "scope": "busca",
+      "status": "candidate",
+      "features": [
+        "filtros-de-locais"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "ACHAR-05 Categoria.java:68 (busca)"
+      ],
+      "created": "2026-11-12T08:48:58Z",
+      "last_seen": "2026-11-12T08:48:58Z"
+    },
+    {
+      "id": "L-005",
+      "key": "surviving_mutant::em teste de ordenacao por niveis escolha dados cuja ordem pelo desempate seguinte contrarie a ordem esperada",
+      "text": "Em teste de ordenacao por niveis, escolha dados cuja ordem pelo desempate seguinte contrarie a ordem esperada",
+      "signal": "surviving_mutant",
+      "scope": "testes",
+      "status": "candidate",
+      "features": [
+        "filtros-de-locais"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M17 LocalRepository.java:102; FiltrosPesquisaTests.java:406-413 (testes)"
+      ],
+      "created": "2026-11-12T09:11:50Z",
+      "last_seen": "2026-11-12T09:11:50Z"
+    }
+  ]
+}

@@ -36,24 +36,83 @@ public interface LocalRepository extends JpaRepository<Local, Long> {
               AND CAST(l.posicao AS geometry) && ST_MakeEnvelope(:oeste, :sul, :leste, :norte, 4326)
             """;
 
+    /** Sem acento e em minúsculas; abre com este prefixo e fecha com "))". */
+    String SEM_ACENTO = "lower(extensions.unaccent(CAST('extensions.unaccent' AS regdictionary), ";
+
+    String NOME_NORMAL = SEM_ACENTO + "l.nome))";
+
+    /** Nome e termos do local, onde as palavras da busca são procuradas. */
+    String TEXTO_NORMAL = SEM_ACENTO + "l.nome || ' ' || array_to_string(l.termos, ' ')))";
+
+    /** Cada palavra da busca, já escapada para LIKE, com os códigos das categorias que ela cita. */
+    String PALAVRAS = " unnest(CAST(:palavras AS text[]), CAST(:categoriasDasPalavras AS text[])) AS p(palavra, categorias) ";
+
+    String PALAVRA = SEM_ACENTO + "p.palavra))";
+
     /**
-     * Sem diferenciar maiúsculas nem acentos. O unaccent e o dicionário vão qualificados; as funções
-     * do PostGIS, como no resto do repositório, dependem do search_path da conexão (AD-017).
-     * O termo chega com %, _ e \ já escapados, e casa como trecho.
+     * A palavra está no nome ou nos termos, ou cita a categoria do local. O IS NOT NULL evita que
+     * uma categoria nula vire NULL no NOT EXISTS e deixe passar um local que não casa.
+     */
+    String CASA_EXATO = "(" + TEXTO_NORMAL + " LIKE '%' || " + PALAVRA + " || '%' ESCAPE '\\'"
+            + " OR (l.categoria IS NOT NULL AND l.categoria = ANY(string_to_array(p.categorias, ' '))))";
+
+    /** Erro leve de digitação, só em palavras de 4 letras ou mais (AD-049). */
+    String CASA_PARECIDO = "(" + PALAVRA + " ~ '^[a-z0-9]{4,}$'"
+            + " AND extensions.strict_word_similarity(" + PALAVRA + ", " + TEXTO_NORMAL + ") >= 0.5)";
+
+    String ORIGEM = "CAST(ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326) AS geography)";
+
+    /**
+     * Aberto no horário de Aracaju recebido em :agora. Abertura inclusiva, fechamento exclusivo;
+     * fecha antes de abrir vira a meia-noite; abre = fecha é 24 horas; sem horário é desconhecido (nulo).
+     */
+    String ABERTO = """
+            CASE WHEN l.abre IS NULL THEN NULL
+                 WHEN l.abre = l.fecha THEN true
+                 WHEN l.abre < l.fecha THEN CAST(:agora AS time) >= l.abre AND CAST(:agora AS time) < l.fecha
+                 ELSE CAST(:agora AS time) >= l.abre OR CAST(:agora AS time) < l.fecha
+            END""";
+
+    /**
+     * Pesquisa com filtros (BACK-023 e BACK-024). Lista vazia não filtra. Todos os textos entram
+     * como parâmetro; o unaccent e o pg_trgm vão qualificados, e as funções do PostGIS dependem
+     * do search_path da conexão (AD-017).
      */
     String PESQUISA = """
             FROM local l
-            CROSS JOIN (SELECT lower(extensions.unaccent(CAST('extensions.unaccent' AS regdictionary), CAST(:termo AS text))) AS termo,
-                               lower(extensions.unaccent(CAST('extensions.unaccent' AS regdictionary), CAST(:categoria AS text))) AS categoria) p
             WHERE """ + CATALOGO_ATIVO + """
               AND l.posicao IS NOT NULL
-              AND (p.categoria IS NULL
-                   OR lower(extensions.unaccent(CAST('extensions.unaccent' AS regdictionary), l.categoria)) = p.categoria)
-              AND (p.termo IS NULL
-                   OR lower(extensions.unaccent(CAST('extensions.unaccent' AS regdictionary), l.nome)) LIKE '%' || p.termo || '%' ESCAPE '\\'
-                   OR lower(extensions.unaccent(CAST('extensions.unaccent' AS regdictionary), l.categoria)) LIKE '%' || p.termo || '%' ESCAPE '\\'
-                   OR EXISTS (SELECT 1 FROM unnest(l.termos) AS t(termo)
-                              WHERE lower(extensions.unaccent(CAST('extensions.unaccent' AS regdictionary), t.termo)) LIKE '%' || p.termo || '%' ESCAPE '\\'))
+              AND (cardinality(CAST(:categorias AS text[])) = 0 OR l.categoria = ANY(CAST(:categorias AS text[])))
+              AND (cardinality(CAST(:precos AS int[])) = 0 OR l.faixa_preco = ANY(CAST(:precos AS int[])))
+              AND (NOT CAST(:soAbertos AS boolean) OR (""" + ABERTO + """
+            ) IS TRUE)
+              AND (NOT CAST(:comRaio AS boolean) OR ST_DWithin(l.posicao, """ + ORIGEM + """
+            , :raioMetros))
+              AND NOT EXISTS (SELECT 1 FROM""" + PALAVRAS + "WHERE NOT (" + CASA_EXATO + " OR " + CASA_PARECIDO + """
+            ))
+            """;
+
+    /**
+     * Com termo: nome começa com ele; nome contém; todas as palavras casam sem semelhança;
+     * alguma só casa por semelhança (ACHAR-06). Sem termo, todos empatam.
+     */
+    String RELEVANCIA = "CASE WHEN CAST(:termoNormal AS text) = '' THEN 0"
+            + " WHEN " + NOME_NORMAL + " LIKE " + SEM_ACENTO + "CAST(:termoNormal AS text))) || '%' ESCAPE '\\' THEN 0"
+            + " WHEN " + NOME_NORMAL + " LIKE '%' || " + SEM_ACENTO + "CAST(:termoNormal AS text))) || '%' ESCAPE '\\' THEN 1"
+            + " WHEN NOT EXISTS (SELECT 1 FROM" + PALAVRAS + "WHERE NOT " + CASA_EXATO + ") THEN 2"
+            + " ELSE 3 END";
+
+    String ITEM_PESQUISA = """
+            SELECT l.id AS "id",
+                   l.nome AS "nome",
+                   l.categoria AS "categoria",
+                   ST_Y(CAST(l.posicao AS geometry)) AS "latitude",
+                   ST_X(CAST(l.posicao AS geometry)) AS "longitude",
+                   CAST(l.faixa_preco AS integer) AS "faixaPreco",
+                   (""" + ABERTO + """
+            ) AS "abertoAgora",
+                   CASE WHEN CAST(:comOrigem AS boolean) THEN ST_Distance(l.posicao, """ + ORIGEM + """
+            ) END AS "distanciaMetros"
             """;
 
     /** Username e email da loja são gravados em minúsculas; o parâmetro já chega em minúsculas. */
@@ -79,13 +138,29 @@ public interface LocalRepository extends JpaRepository<Local, Long> {
                                    @Param("norte") double norte,
                                    Pageable pagina);
 
-    /** @param termo nulo para não filtrar; já escapado para LIKE */
-    @Query(value = MARCADOR + PESQUISA
-            + "ORDER BY lower(extensions.unaccent(CAST('extensions.unaccent' AS regdictionary), l.nome)), l.id",
+    /**
+     * @param palavras             palavras da busca, normalizadas e escapadas para LIKE; vazia sem termo
+     * @param categoriasDasPalavras para cada palavra, os códigos de categoria que ela cita, separados por espaço
+     * @param termoNormal          o termo inteiro, normalizado e escapado; vazio sem termo
+     * @param agora                hora atual em Aracaju, "HH:mm:ss". Vai como texto: um LocalTime seria
+     *                             convertido pelo fuso da conexão JDBC e mudaria de hora
+     */
+    @Query(value = ITEM_PESQUISA + PESQUISA
+            + "ORDER BY " + RELEVANCIA + ", \"distanciaMetros\", " + NOME_NORMAL + ", l.id",
             countQuery = "SELECT count(*) " + PESQUISA, nativeQuery = true)
-    Page<LocalNaArea> pesquisar(@Param("termo") String termo,
-                                @Param("categoria") String categoria,
-                                Pageable pagina);
+    Page<ItemPesquisa> pesquisar(@Param("palavras") String[] palavras,
+                                 @Param("categoriasDasPalavras") String[] categoriasDasPalavras,
+                                 @Param("termoNormal") String termoNormal,
+                                 @Param("categorias") String[] categorias,
+                                 @Param("precos") Integer[] precos,
+                                 @Param("soAbertos") boolean soAbertos,
+                                 @Param("agora") String agora,
+                                 @Param("comOrigem") boolean comOrigem,
+                                 @Param("latitude") double latitude,
+                                 @Param("longitude") double longitude,
+                                 @Param("comRaio") boolean comRaio,
+                                 @Param("raioMetros") double raioMetros,
+                                 Pageable pagina);
 
     @Query(value = """
             SELECT l.id AS "id",
@@ -149,6 +224,15 @@ public interface LocalRepository extends JpaRepository<Local, Long> {
         double getLatitude();
 
         double getLongitude();
+    }
+
+    /** Item da pesquisa: o marcador mais preço, situação de agora e distância (nulos quando desconhecidos). */
+    interface ItemPesquisa extends LocalNaArea {
+        Integer getFaixaPreco();
+
+        Boolean getAbertoAgora();
+
+        Double getDistanciaMetros();
     }
 
     interface LocalProximo extends LocalNaArea {

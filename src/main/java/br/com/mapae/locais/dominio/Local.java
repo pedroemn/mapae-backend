@@ -36,9 +36,13 @@ public class Local {
     @Column(length = 8)
     private String cep;
 
-    /** Tipo do estabelecimento em texto livre, como "bar". */
+    /** Tipo informado no cadastro da loja: sempre um código de {@link Categoria}. */
     @Column(length = 50)
     private String tipo;
+
+    /** Código de {@link Categoria}; nula enquanto o local não tem categoria. */
+    @Column(length = 50)
+    private String categoria;
 
     /** Nulo nos locais criados antes das contas de loja. */
     @Embedded
@@ -48,11 +52,14 @@ public class Local {
     }
 
     /** Loja criada pelo cadastro, ainda sem posição. */
-    public static Local loja(String username, String nome, String email, String cep, String tipo, String senhaHash) {
+    /** @param categoria nula quando a loja não informou o tipo; senão vira tipo e categoria (AD-050) */
+    public static Local loja(String username, String nome, String email, String cep, Categoria categoria,
+                             String senhaHash) {
         Local local = new Local();
         local.nome = nome;
         local.cep = cep;
-        local.tipo = tipo;
+        local.tipo = categoria == null ? null : categoria.codigo();
+        local.categoria = local.tipo;
         local.acesso = DadosDeAcesso.novos(username, email, senhaHash, TipoPerfil.LOJA);
         return local;
     }
@@ -84,6 +91,10 @@ public class Local {
 
     public String getTipo() {
         return tipo;
+    }
+
+    public String getCategoria() {
+        return categoria;
     }
 
     public DadosDeAcesso getAcesso() {

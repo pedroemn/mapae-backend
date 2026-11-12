@@ -447,7 +447,7 @@ O review desta task apontou os itens abaixo, atualizados na task de consultas ge
 - **Decisão:** a migração acrescenta `categoria VARCHAR(50)` (nula), `termos TEXT[] NOT NULL DEFAULT '{}'` e `ativo BOOLEAN NOT NULL DEFAULT true`, e instala `unaccent` no schema `extensions`, como o PostGIS (AD-017). O catálogo ativo é `ativo = true`, com posição e, se o local for conta de loja, com `status = 'ATIVO'`: só ele aparece em `/area`, `/proximos` e `/pesquisa`. Loja bloqueada ou inativa sai do mapa sem que alguém precise mexer em `ativo`.
 - **Consequências:**
   - Os locais que já existiam continuam ativos, sem categoria e sem termos. A loja cadastrada nasce ativa e sem categoria, e só aparece depois de ter posição (AD-033).
-  - `categoria` (do catálogo) e `tipo` (que a loja informa no cadastro) são colunas diferentes. A equipe precisa decidir se o cadastro administrativo copia o `tipo` para a `categoria` ou se o `tipo` deixa de existir.
+  - `categoria` (do catálogo) e `tipo` (que a loja informa no cadastro) são colunas diferentes. Resolvido na AD-050: o cadastro da loja grava o mesmo código nas duas.
   - Não há como editar categoria, termos e `ativo` pela API até existir o cadastro administrativo de locais (AD-029).
   - A pesquisa não usa índice. Com a base pequena (AD-029) isso é aceitável; se crescer, o caminho é `pg_trgm` com uma função de normalização imutável.
 
@@ -482,3 +482,52 @@ O review desta task apontou os itens abaixo, atualizados na task de consultas ge
 - **Problema:** o merge `45ff2d0` (login com main) resolveu o conflito do `pom.xml` mantendo a versão do login e perdeu a dependência `software.amazon.awssdk:s3`. A `main` deixou de compilar. O mesmo merge perdeu as variáveis do R2 no `.env.example`, que já usavam nomes diferentes dos que o código lê.
 - **Correção:** a dependência `software.amazon.awssdk:s3` 2.29.51 voltou ao `pom.xml`. O `.env.example` lista as variáveis com os nomes que `R2Config` e `R2Service` leem (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ACCESS_KEY_ID`, `CLOUDFLARE_SECRET_ACCESS_KEY`, `CLOUDFLARE_ENDPOINT`, `CLOUDFLARE_R2_BUCKET`). Os testes usam valores falsos em `src/test/resources/config/application.properties`.
 - **Consequência:** sem essas variáveis no `.env`, a aplicação não sobe. Sem conta R2, valores falsos bastam para subir local; só o upload falha. Tornar o R2 opcional fica para quem mantém o módulo.
+
+---
+
+## Task: Filtros de locais (BACK-024)
+
+**Data:** 2026-11-12
+**Situação:** implementada no working tree da branch `PesquisaLocais`, sem commit (AD-001). Spec em `.specs/features/filtros-de-locais/`.
+**Verificado:** `./mvnw test` com 283 testes (219 antes da task). Verificador independente com PASS na iteração 3 (24 de 24 ACs; 28 de 28 mutantes mortos; sondas de segurança sem brecha).
+**Supabase:** nada aplicado. A migração `V20261112150000__filtros_de_locais` sobe na próxima vez que a aplicação iniciar contra o Supabase; `pg_trgm` está disponível lá e ainda não instalada. A tabela `local` está vazia no Supabase, então o CHECK de categoria não encontra dado antigo.
+
+### AD-045: Lista fixa de categorias
+
+- **Status:** Confirmada pelo usuário em 2026-11-12 (lista e escopo enxuto, sem tabela nem rota de categorias).
+- **Decisão:** as categorias são `bar`, `restaurante`, `cafe`, `padaria`, `lanchonete`, `balada`, `evento` e `outro`, no enum `Categoria` e no CHECK `ck_local_categoria`. Cada uma tem um nome de exibição e sinônimos fixos para a busca. O parâmetro `categoria` aceita o código ou o nome, sem diferenciar maiúsculas nem acentos; valor desconhecido dá 400.
+- **Consequências:**
+  - Mudar a lista exige migração (CHECK) e mudança no enum; `FiltrosPesquisaTests` falha se as duas divergirem.
+  - Substitui a categoria livre da AD-040 e a igualdade por texto da AD-043: um trecho como `cafeter` deixou de ser categoria e dá 400 em vez de lista vazia.
+  - O front mantém a lista no código, porque não há rota de categorias.
+
+### AD-046: Faixa de preço de 1 a 4
+
+- **Status:** Proposta
+- **Decisão:** coluna `faixa_preco SMALLINT` (1 a 4, nula). O filtro `preco` aceita um ou mais valores (repetindo o parâmetro ou separados por vírgula).
+
+### AD-047: Horário de funcionamento e fuso
+
+- **Status:** Proposta
+- **Decisão:** colunas `abre` e `fecha` (TIME), o mesmo horário todo dia, os dois nulos ou os dois preenchidos. `fecha` menor que `abre` vira a meia-noite; `abre = fecha` é 24 horas; abertura inclusiva e fechamento exclusivo. `abertoAgora=true` compara com a hora atual em `America/Maceio`, calculada no Java a partir de um `Clock` e enviada ao banco como texto.
+- **Motivo do texto:** com `hibernate.jdbc.time_zone=UTC`, um `LocalTime` enviado pelo JDBC muda de hora. O teste com relógio parado em 23:30 UTC (20:30 em Aracaju) pegou isso.
+- **Limite:** horário por dia da semana fica para o cadastro administrativo (BACK-012).
+
+### AD-048: Distância na pesquisa e origem ausente
+
+- **Status:** Proposta
+- **Decisão:** `latitude` e `longitude` (juntas) dão `distanciaMetros` em cada item e ordenam por distância; `raioMetros` (1 a 100000) filtra. Sem origem, `distanciaMetros` vem `null`, e `raioMetros` ou só uma das coordenadas dão 400.
+
+### AD-049: Busca que encontra
+
+- **Status:** Proposta. Pedido do usuário em 2026-11-12: "quando o usuário buscar, ele realmente encontre o que está procurando".
+- **Decisão:** cada palavra do termo precisa casar com o nome, os termos ou a categoria do local, em qualquer ordem. Palavras de ligação (`de`, `do`, `da`, `com`, `sem`, `para`...) são ignoradas, salvo se o termo só tiver elas. Plural simples casa com o singular. A palavra cita uma categoria quando o código, o nome ou um sinônimo começa com ela (3 letras ou mais); trecho do meio não vale, senão "ria" citaria choperia, pizzaria e cafeteria. Palavras com 4 letras ou mais toleram erro leve: `pg_trgm` (`strict_word_similarity` ≥ 0,5) no nome e nos termos, e distância de edição até 1 com o código, o nome e os sinônimos da categoria. A ordem é: nome começa com o termo; nome contém o termo; casa sem semelhança; casa só por semelhança; depois distância (se houver origem), nome e `id`.
+- **Segurança:** as palavras entram como array de parâmetros, escapadas para LIKE; nada do usuário é concatenado ao SQL. `pg_trgm` fica no schema `extensions` e vai qualificado.
+- **Cuidado encontrado:** com `categoria` nula, `l.categoria = ANY(...)` vira NULL e o `NOT EXISTS` deixava passar local que não casava; a consulta usa `l.categoria IS NOT NULL AND ...`.
+- **Limite:** sem índice (base pequena, AD-029). Se a base crescer, entra um índice GIN de trigramas sobre uma função de normalização imutável.
+
+### AD-050: Tipo da loja vira categoria
+
+- **Status:** Proposta. Resolve a pendência da AD-040 sobre `tipo` e `categoria`.
+- **Decisão:** no cadastro da loja, `tipo` aceita só uma categoria da lista (código ou nome) e grava o código em `tipo` e em `categoria`. Outro valor dá 400 em `campos.tipo`. Sem `tipo`, a loja fica sem categoria.
+- **Consequência:** uma loja cadastrada como "bar" aparece no filtro `categoria=bar` assim que tiver posição. O front do cadastro precisa oferecer a lista em vez de texto livre.

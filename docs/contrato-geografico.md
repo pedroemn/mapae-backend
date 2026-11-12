@@ -26,7 +26,7 @@ Fluxo da busca livre: o app chama o provedor, recebe as coordenadas, move o mapa
 
 - O mapa e a pesquisa só mostram o catálogo ativo: local com `ativo = true`, com posição e, se for conta de loja, com status `ATIVO` (AD-040).
 - As três rotas de `/api/v1/locais` são públicas. Um token enviado a elas é ignorado, mesmo expirado, então o mapa não quebra quando o login vence (AD-041).
-- O item de marcador é igual em `/area` e `/pesquisa`: `id`, `nome`, `categoria` (pode ser `null`), `latitude` e `longitude`. `/proximos` traz os mesmos campos e `distanciaMetros`.
+- O marcador de `/area` tem `id`, `nome`, `categoria` (pode ser `null`), `latitude` e `longitude`. `/pesquisa` traz os mesmos campos mais `faixaPreco`, `abertoAgora` e `distanciaMetros`; `/proximos`, os mesmos mais `distanciaMetros`.
 
 ### Paginação (AD-042)
 
@@ -70,31 +70,76 @@ Uma caixa que cruza o meridiano de 180° não é aceita. Isso não afeta Aracaju
 
 ## `GET /api/v1/locais/pesquisa`
 
-Pesquisa no catálogo ativo. Sempre paginada.
+Pesquisa no catálogo ativo, com filtros (BACK-023 e BACK-024). É independente do mapa: não usa a região visível. Sempre paginada.
 
 | Parâmetro | Obrigatório | Regra |
 | --------- | ----------- | ----- |
-| `termo` | Não | Até 100 caracteres, sem o caractere NUL. Casa como trecho do nome, da categoria ou de um dos termos do local |
-| `categoria` | Não | Até 50 caracteres, sem o caractere NUL. Casa por igualdade |
+| `termo` | Não | Até 100 caracteres, sem o caractere NUL. Veja "Como o termo casa" |
+| `categoria` | Não | Uma ou mais da lista abaixo, pelo código ou pelo nome. Repita o parâmetro (`categoria=bar&categoria=cafe`) ou separe por vírgula. No máximo 20 valores |
+| `preco` | Não | Uma ou mais faixas de 1 ($) a 4 ($$$$), repetindo o parâmetro ou separadas por vírgula. No máximo 20 valores |
+| `abertoAgora` | Não | `true` mostra só os abertos agora, no horário de Aracaju. `false` ou ausente não filtra |
+| `latitude`, `longitude` | Não | Posição do usuário. Precisam vir juntas. Com elas, cada item traz `distanciaMetros` |
+| `raioMetros` | Não | De 1 a 100000. Exige `latitude` e `longitude` |
 | `pagina`, `tamanho` | Não | Paginação acima |
 
-- Nenhum dos dois diferencia maiúsculas nem acentos: `cafe` acha "Café Central".
-- `termo` e `categoria` juntos: o local precisa atender aos dois.
-- `termo` vazio ou só com espaços vale como não informado; sem nenhum filtro, lista todo o catálogo ativo.
-- `%` e `_` são caracteres comuns, não curingas.
-- Ordem: nome (sem acento e sem maiúsculas), depois `id`.
-- Sem resultado: 200 com `itens` vazio e `totalItens` 0.
+### Categorias (AD-045)
+
+| Código | Nome | Também acha por |
+| ------ | ---- | --------------- |
+| `bar` | Bar | boteco, pub, choperia, cervejaria |
+| `restaurante` | Restaurante | comida, almoço, jantar, pizzaria, churrascaria |
+| `cafe` | Café | cafeteria |
+| `padaria` | Padaria | panificadora, pão |
+| `lanchonete` | Lanchonete | lanche, hamburgueria, sanduíche, salgado |
+| `balada` | Balada | boate, festa, night |
+| `evento` | Evento | show, festival, feira |
+| `outro` | Outro | |
+
+O parâmetro `categoria` aceita só o código ou o nome ("Café" e "cafe" são a mesma). Os sinônimos valem só no `termo`.
+
+### Como o termo casa (AD-049)
+
+- Cada palavra precisa casar com o nome, os termos ou a categoria do local, em qualquer ordem: "napoli pizzaria" acha "Pizzaria Napoli".
+- Não diferencia maiúsculas nem acentos: `cafe` acha "Café Central".
+- Palavras de ligação (`de`, `do`, `da`, `dos`, `das`, `e`, `em`, `no`, `na`, `a`, `o`, `os`, `as`, `com`, `sem`, `para`, `pra`) são ignoradas.
+- Plural acha o singular: "bares" acha "Bar do Rock".
+- Erro leve de digitação em palavras com 4 letras ou mais: "pizaria" acha "Pizzaria Napoli"; "restaurnte" acha os restaurantes.
+- Sinônimo da categoria acha os locais dela, pelo começo da palavra: "boteco" e "botec" acham os bares.
+- `%`, `_` e `\` são caracteres comuns, não curingas.
+
+### Filtros
+
+- Os filtros se combinam: o local precisa atender a todos e ao `termo`.
+- Para limpar um filtro, basta tirá-lo da URL.
+- Local sem preço ou sem horário cadastrado fica fora quando o filtro correspondente está ligado. Sem o filtro, ele aparece com o campo `null`.
+- "Aberto agora" usa o horário de Aracaju (`America/Maceio`), qualquer que seja o fuso do servidor ou do aparelho. Um local das 18h às 2h está aberto às 23h e à 1h.
+- Sem `latitude` e `longitude`, o filtro de distância fica indisponível (`raioMetros` dá 400) e os outros funcionam. O app deve esconder ou desabilitar o filtro de distância quando não tiver a localização.
+
+### Ordem
+
+- Com `termo`: primeiro o nome que começa com o termo, depois o nome que contém o termo, depois o que casa por termos ou categoria, por último o que casa só por erro de digitação.
+- Em seguida, do mais perto ao mais longe (se houver origem), depois nome e `id`.
+- Sem `termo` e com origem: do mais perto ao mais longe. Sem `termo` e sem origem: por nome.
+
+### Resposta
 
 ```json
 {
   "itens": [
-    { "id": 7, "nome": "Café Central", "categoria": "Cafeteria", "latitude": -10.95, "longitude": -37.05 }
+    { "id": 7, "nome": "Pizzaria Napoli", "categoria": "restaurante", "latitude": -10.96, "longitude": -37.05,
+      "faixaPreco": 3, "abertoAgora": true, "distanciaMetros": 1105.8 }
   ],
   "pagina": { "numero": 0, "tamanho": 20, "totalItens": 1, "totalPaginas": 1 }
 }
 ```
 
+`faixaPreco`, `abertoAgora` e `distanciaMetros` vêm sempre, com `null` quando o dado é desconhecido ou a pesquisa não tem origem. Sem resultado: 200 com `itens` vazio e `totalItens` 0. Valor inválido (categoria fora da lista, `preco` fora de 1 a 4, raio fora da faixa, origem incompleta): 400 em Problem Details.
+
 A pesquisa só olha os locais do Mapaê. Endereços e outros lugares continuam com o provedor de mapas do app.
+
+### Cadastro da loja (AD-050)
+
+O campo `tipo` do `POST /api/v1/lojas` aceita só uma categoria da lista (código ou nome) e é opcional. A loja passa a aparecer no filtro dessa categoria quando tiver posição. Outro valor dá 400 com `campos.tipo`.
 
 ## `GET /api/v1/locais/proximos`
 

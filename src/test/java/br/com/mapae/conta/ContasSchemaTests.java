@@ -10,6 +10,7 @@ import br.com.mapae.BancoDeTesteConfig;
 import br.com.mapae.conta.dominio.Genero;
 import br.com.mapae.conta.dominio.Usuario;
 import br.com.mapae.conta.dominio.UsuarioRepository;
+import br.com.mapae.locais.dominio.Categoria;
 import br.com.mapae.locais.dominio.Local;
 import br.com.mapae.locais.dominio.LocalRepository;
 import java.time.LocalDate;
@@ -101,7 +102,11 @@ class ContasSchemaTests {
                 // Catálogo pesquisável (spec locais-mapa-e-pesquisa, CAT-01)
                 Map.entry("categoria", "character varying:YES"),
                 Map.entry("termos", "ARRAY:NO"),
-                Map.entry("ativo", "boolean:NO")));
+                Map.entry("ativo", "boolean:NO"),
+                // Filtros da pesquisa (spec filtros-de-locais, DADOS-01)
+                Map.entry("faixa_preco", "smallint:YES"),
+                Map.entry("abre", "time without time zone:YES"),
+                Map.entry("fecha", "time without time zone:YES")));
     }
 
     // CONTA-05
@@ -129,10 +134,10 @@ class ContasSchemaTests {
     // CONTA-06
     @Test
     void mapeamentoDaLojaGravaOsCampos() {
-        Local salvo = locais.saveAndFlush(Local.loja("Bar", "Bar", "Bar@X.com", "49000000", "bar", "$2a$10$hash"));
+        Local salvo = locais.saveAndFlush(Local.loja("Bar", "Bar", "Bar@X.com", "49000000", Categoria.BAR, "$2a$10$hash"));
         Map<String, Object> linha = jdbc.queryForMap("SELECT * FROM local WHERE id = ?", salvo.getId());
         assertThat(linha).containsEntry("username", "bar").containsEntry("email", "bar@x.com")
-                .containsEntry("tipo", "bar").containsEntry("posicao", null).containsEntry("primeiro_acesso", true)
+                .containsEntry("tipo", "bar").containsEntry("categoria", "bar").containsEntry("posicao", null).containsEntry("primeiro_acesso", true)
                 .containsEntry("status", "ATIVO").containsEntry("tipo_perfil", "LOJA");
     }
 

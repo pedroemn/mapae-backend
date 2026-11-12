@@ -64,7 +64,7 @@ class PesquisaLocaisTests {
     @BeforeEach
     void preparar() {
         catalogo = new CatalogoDeTeste(jdbc);
-        cafeCentral = catalogo.ativo("Café Central", "Cafeteria", "wifi|café especial", LAT, LNG);
+        cafeCentral = catalogo.ativo("Café Central", "cafe", "wifi|café especial", LAT, LNG);
         padaria = catalogo.ativo("Padaria São João", "padaria", "pão|cafe da manha", LAT, LNG + 0.001);
         barDoZe = catalogo.ativo("Bar do Zé", "bar", "petiscos|música ao vivo", LAT, LNG + 0.002);
         sorveteria = catalogo.ativo("Sorveteria Gelato", null, "", LAT, LNG + 0.003);
@@ -91,7 +91,8 @@ class PesquisaLocaisTests {
                 .andExpect(jsonPath("$.itens[0].id").value(cafeCentral));
     }
 
-    // BUSCA-01: o termo também casa com a categoria e com os termos do local
+    // BUSCA-01: o termo também casa com a categoria e com os termos do local. Com a lista fixa
+    // (BACK-024), "cafeter" é trecho de "cafeteria", sinônimo da categoria cafe.
     @Test
     void encontraPelaCategoriaEPelosTermos() throws Exception {
         pesquisar("termo", "cafeter").andExpect(jsonPath("$.itens.length()").value(1))
@@ -114,10 +115,14 @@ class PesquisaLocaisTests {
                 .andExpect(jsonPath("$.itens[0].id").value(padaria));
     }
 
-    // BUSCA-02: categoria é igualdade, não trecho
+    // BUSCA-02: categoria é igualdade, não trecho. Com a lista fixa (BACK-024, FILT-09), um trecho
+    // não é categoria conhecida e dá 400 em vez de lista vazia.
     @Test
     void categoriaParcialNaoCasa() throws Exception {
-        pesquisar("categoria", "cafe").andExpect(jsonPath("$.itens.length()").value(0));
+        pesquisar("categoria", "cafeter").andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+        pesquisar("categoria", "cafe").andExpect(jsonPath("$.itens.length()").value(1))
+                .andExpect(jsonPath("$.itens[0].id").value(cafeCentral));
     }
 
     // BUSCA-03
@@ -172,8 +177,8 @@ class PesquisaLocaisTests {
     // BUSCA-06: empate de nome desempata por id; "Água" vem antes de "Bar" sem o acento
     @Test
     void ordemIgnoraAcentoEDesempataPorId() throws Exception {
-        long agua1 = catalogo.ativo("Água de Coco", "quiosque", "", LAT, LNG);
-        long agua2 = catalogo.ativo("Água de Coco", "quiosque", "", LAT, LNG);
+        long agua1 = catalogo.ativo("Água de Coco", "outro", "", LAT, LNG);
+        long agua2 = catalogo.ativo("Água de Coco", "outro", "", LAT, LNG);
         pesquisar().andExpect(jsonPath("$.itens[0].id").value(agua1))
                 .andExpect(jsonPath("$.itens[1].id").value(agua2))
                 .andExpect(jsonPath("$.itens[2].id").value(barDoZe));
@@ -183,11 +188,11 @@ class PesquisaLocaisTests {
     // banco poria "Cafe" antes de "Café" e "bar" antes de "BAR"; a regra da spec põe o de menor id.
     @Test
     void empateSemAcentoESemMaiusculasSaiPorId() throws Exception {
-        long comAcento = catalogo.ativo("Café Xique", "x", "", LAT, LNG);
-        long semAcento = catalogo.ativo("Cafe Xique", "x", "", LAT, LNG);
-        long maiusculo = catalogo.ativo("BAR ZETA", "x", "", LAT, LNG);
-        long minusculo = catalogo.ativo("bar zeta", "x", "", LAT, LNG);
-        pesquisar("categoria", "x")
+        long comAcento = catalogo.ativo("Café Xique", "outro", "", LAT, LNG);
+        long semAcento = catalogo.ativo("Cafe Xique", "outro", "", LAT, LNG);
+        long maiusculo = catalogo.ativo("BAR ZETA", "outro", "", LAT, LNG);
+        long minusculo = catalogo.ativo("bar zeta", "outro", "", LAT, LNG);
+        pesquisar("categoria", "outro")
                 .andExpect(jsonPath("$.itens[0].id").value(maiusculo))
                 .andExpect(jsonPath("$.itens[1].id").value(minusculo))
                 .andExpect(jsonPath("$.itens[2].id").value(comAcento))
@@ -245,11 +250,13 @@ class PesquisaLocaisTests {
     void caractereNulDa400() throws Exception {
         pesquisar("termo", "caf\u0000").andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
-        pesquisar("categoria", "bar\u0000").andExpect(status().isBadRequest())
+        // categoria é lista: o Spring apara as pontas de cada valor (NUL incluso), então o NUL vai no meio
+        pesquisar("categoria", "b\u0000ar").andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
     }
 
-    // BUSCA-07: termo até 100 e categoria até 50 caracteres
+    // BUSCA-07: termo até 100 e categoria até 50 caracteres. Com a lista fixa (BACK-024), uma
+    // categoria de 50 letras não existe e também dá 400; o limite do termo segue igual.
     @Test
     void textoLongoDemaisDa400() throws Exception {
         pesquisar("termo", "a".repeat(101)).andExpect(status().isBadRequest())
@@ -257,7 +264,7 @@ class PesquisaLocaisTests {
                 .andExpect(jsonPath("$.detail", not(containsString("SQL"))));
         pesquisar("categoria", "a".repeat(51)).andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
-        pesquisar("termo", "a".repeat(100), "categoria", "a".repeat(50)).andExpect(status().isOk());
+        pesquisar("termo", "a".repeat(100), "categoria", "bar").andExpect(status().isOk());
     }
 
     // BUSCA-08: %, _ e \ são literais. "Desconto 10%" termina em %: se a barra não fosse escapada,
@@ -290,7 +297,7 @@ class PesquisaLocaisTests {
     // BUSCA-09: inativo e sem posição ficam fora, mesmo casando o nome
     @Test
     void inativoESemPosicaoFicamFora() throws Exception {
-        catalogo.local("Café Fechado", "cafeteria", "", false, LAT, LNG);
+        catalogo.local("Café Fechado", "cafe", "", false, LAT, LNG);
         mvc.perform(post("/api/v1/lojas").contentType(MediaType.APPLICATION_JSON).content("""
                         {"username":"cafe.novo","nome":"Café Novo","email":"cafe@novo.com","cep":"49010000",
                          "senha":"senha-forte-1"}"""))
@@ -320,7 +327,7 @@ class PesquisaLocaisTests {
         pesquisar("termo", "central")
                 .andExpect(jsonPath("$.itens[0].id").value(cafeCentral))
                 .andExpect(jsonPath("$.itens[0].nome").value("Café Central"))
-                .andExpect(jsonPath("$.itens[0].categoria").value("Cafeteria"))
+                .andExpect(jsonPath("$.itens[0].categoria").value("cafe"))
                 .andExpect(jsonPath("$.itens[0].latitude").value(LAT))
                 .andExpect(jsonPath("$.itens[0].longitude").value(LNG))
                 .andExpect(jsonPath("$.itens[0]", not(hasKey("termos"))))
