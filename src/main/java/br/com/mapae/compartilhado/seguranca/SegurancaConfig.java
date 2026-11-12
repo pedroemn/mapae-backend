@@ -23,7 +23,11 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.ErrorResponseException;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -38,6 +42,9 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 @EnableConfigurationProperties({JwtPropriedades.class, CorsPropriedades.class})
 public class SegurancaConfig {
 
+    /** Rotas que exigem token. Só nelas o cabeçalho Authorization é lido (AD-041). */
+    static final String ROTAS_PROTEGIDAS = "/api/v1/contas/**";
+
     @Bean
     SecurityFilterChain filtroDeSeguranca(HttpSecurity http, AuthenticationEntryPoint semToken) throws Exception {
         return http
@@ -45,9 +52,10 @@ public class SegurancaConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sessao -> sessao.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(rotas -> rotas
-                        .requestMatchers("/api/v1/contas/**").authenticated()
+                        .requestMatchers(ROTAS_PROTEGIDAS).authenticated()
                         .anyRequest().permitAll())
-                .oauth2ResourceServer(jwt -> jwt.jwt(Customizer.withDefaults()).authenticationEntryPoint(semToken))
+                .oauth2ResourceServer(jwt -> jwt.bearerTokenResolver(leitorDeToken())
+                        .jwt(Customizer.withDefaults()).authenticationEntryPoint(semToken))
                 .exceptionHandling(erros -> erros.authenticationEntryPoint(semToken))
                 .build();
     }
@@ -66,6 +74,16 @@ public class SegurancaConfig {
         UrlBasedCorsConfigurationSource fonte = new UrlBasedCorsConfigurationSource();
         fonte.registerCorsConfiguration("/api/**", cors);
         return fonte;
+    }
+
+    /**
+     * Rota pública ignora o token: um token expirado não derruba o mapa nem a pesquisa com 401.
+     * Uma rota protegida fora de {@link #ROTAS_PROTEGIDAS} nunca leria o token e falharia fechada (401).
+     */
+    static BearerTokenResolver leitorDeToken() {
+        DefaultBearerTokenResolver padrao = new DefaultBearerTokenResolver();
+        RequestMatcher protegidas = PathPatternRequestMatcher.withDefaults().matcher(ROTAS_PROTEGIDAS);
+        return requisicao -> protegidas.matches(requisicao) ? padrao.resolve(requisicao) : null;
     }
 
     /** 401 em Problem Details, pelo mesmo tratador de erros do resto da API. */

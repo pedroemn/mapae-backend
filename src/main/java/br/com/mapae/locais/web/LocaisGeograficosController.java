@@ -1,6 +1,10 @@
 package br.com.mapae.locais.web;
 
+import static br.com.mapae.locais.aplicacao.ConsultaLocais.PAGINA_MAXIMA;
+import static br.com.mapae.locais.aplicacao.ConsultaLocais.TAMANHO_MAXIMO;
+
 import br.com.mapae.locais.aplicacao.ConsultaLocais;
+import br.com.mapae.locais.aplicacao.ConsultaLocais.Pagina;
 import br.com.mapae.locais.dominio.LocalRepository.LocalNaArea;
 import br.com.mapae.locais.dominio.LocalRepository.LocalProximo;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -8,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
@@ -28,16 +33,21 @@ public class LocaisGeograficosController {
     }
 
     @Operation(summary = "Locais dentro da região visível do mapa",
-            description = "Caixa em latitude/longitude. `truncado` indica que o `limite` cortou o resultado.")
+            description = "Só locais ativos, em caixa de latitude/longitude, ordenados por id. Sem `pagina`, `tamanho` "
+                    + "e `limite` devolve todos. Com `pagina` ou `tamanho` (padrão 0 e 20, máximo 100) devolve a página "
+                    + "e o campo `pagina`. `limite` não combina com eles. `truncado` indica que há mais locais.")
     @GetMapping("/area")
     public AreaResponse area(
             @RequestParam @DecimalMin("-180") @DecimalMax("180") double oeste,
             @RequestParam @DecimalMin("-90") @DecimalMax("90") double sul,
             @RequestParam @DecimalMin("-180") @DecimalMax("180") double leste,
             @RequestParam @DecimalMin("-90") @DecimalMax("90") double norte,
-            @RequestParam(required = false) @Min(1) Integer limite) {
-        ConsultaLocais.ResultadoArea resultado = consulta.buscarNaArea(oeste, sul, leste, norte, limite);
-        return new AreaResponse(resultado.itens().stream().map(LocalResponse::de).toList(), resultado.truncado());
+            @RequestParam(required = false) @Min(1) Integer limite,
+            @RequestParam(required = false) @Min(0) @Max(PAGINA_MAXIMA) Integer pagina,
+            @RequestParam(required = false) @Min(1) @Max(TAMANHO_MAXIMO) Integer tamanho) {
+        ConsultaLocais.ResultadoArea resultado = consulta.buscarNaArea(oeste, sul, leste, norte, limite, pagina, tamanho);
+        return new AreaResponse(resultado.itens().stream().map(LocalResponse::de).toList(), resultado.truncado(),
+                resultado.pagina());
     }
 
     @Operation(summary = "Locais perto de um ponto, ou todos",
@@ -53,22 +63,26 @@ public class LocaisGeograficosController {
         return new ProximosResponse(itens);
     }
 
-    public record AreaResponse(List<LocalResponse> itens, boolean truncado) {
+    /** @param pagina só aparece quando a consulta foi paginada */
+    public record AreaResponse(List<LocalResponse> itens, boolean truncado,
+                               @JsonInclude(JsonInclude.Include.NON_NULL) Pagina pagina) {
     }
 
     public record ProximosResponse(List<LocalProximoResponse> itens) {
     }
 
-    public record LocalResponse(Long id, String nome, double latitude, double longitude) {
+    /** Marcador do mapa e item da pesquisa: os mesmos campos nas duas rotas. */
+    public record LocalResponse(Long id, String nome, String categoria, double latitude, double longitude) {
         static LocalResponse de(LocalNaArea local) {
-            return new LocalResponse(local.getId(), local.getNome(), local.getLatitude(), local.getLongitude());
+            return new LocalResponse(local.getId(), local.getNome(), local.getCategoria(), local.getLatitude(),
+                    local.getLongitude());
         }
     }
 
-    public record LocalProximoResponse(Long id, String nome, double latitude, double longitude,
+    public record LocalProximoResponse(Long id, String nome, String categoria, double latitude, double longitude,
                                        @JsonInclude(JsonInclude.Include.NON_NULL) Double distanciaMetros) {
         static LocalProximoResponse de(LocalProximo local) {
-            return new LocalProximoResponse(local.getId(), local.getNome(), local.getLatitude(),
+            return new LocalProximoResponse(local.getId(), local.getNome(), local.getCategoria(), local.getLatitude(),
                     local.getLongitude(), local.getDistanciaMetros());
         }
     }

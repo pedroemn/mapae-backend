@@ -26,7 +26,8 @@ class DocumentacaoApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title").value("Mapaê API"))
                 .andExpect(jsonPath("$.paths['/api/v1/locais/area']").exists())
-                .andExpect(jsonPath("$.paths['/api/v1/locais/proximos']").exists());
+                .andExpect(jsonPath("$.paths['/api/v1/locais/proximos']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/locais/pesquisa']").exists());
     }
 
     @Test

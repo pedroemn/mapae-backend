@@ -38,6 +38,11 @@
 - **AD-037** (2026-11-11, proposta): Só `/api/v1/contas/**` exige token; cada task futura protege as suas rotas no `SegurancaConfig`.
 - **AD-038** (2026-11-11, proposta): `/contas/eu` usa a porta `ProvedorDeConta` em `compartilhado` (módulo OPEN), sem `conta` depender de `locais`.
 - **AD-039** (2026-11-12, proposta): CORS para `/api/**` com origens de `MAPAE_CORS_ORIGENS` (padrão localhost:3000 e 5173); só `Authorization` e `Content-Type`, sem cookies.
+- **AD-040** (2026-11-12): Catálogo: `categoria`, `termos TEXT[]` e `ativo` em `local`; `unaccent` em `extensions`; mapa e pesquisa só mostram ativos com posição e, se loja, com status ATIVO.
+- **AD-041** (2026-11-12, proposta): Só `ROTAS_PROTEGIDAS` (`/api/v1/contas/**`) leem o token; rotas públicas ignoram token expirado ou inválido.
+- **AD-042** (2026-11-12): Paginação `pagina` (0, máx. 21474836) e `tamanho` (20, máx. 100) com `{numero, tamanho, totalItens, totalPaginas}`; opcional na `/area`, sempre na `/pesquisa`.
+- **AD-043** (2026-11-12, proposta): Pesquisa por trecho de nome/categoria/termos e categoria por igualdade, sem maiúsculas nem acentos; curingas literais; ordem por nome.
+- **AD-044** (2026-11-12): `software.amazon.awssdk:s3` restaurada no `pom.xml` (perdida no merge 45ff2d0); variáveis do R2 documentadas no `.env.example`.
 
 ## Referências
 
@@ -47,6 +52,8 @@
 
 ## Handoff
 
-- Feature `conta-e-login`: T1 a T8 implementadas no working tree, sem commit (AD-001); 159 testes passando com `./mvnw test` (inclui CORS, AD-039); Verificador PASS na iteração 3 (2026-11-12). Migração `V20261111103000__criar_contas` aplicada no Supabase em 2026-11-11 (não alterar o arquivo: o checksum já está gravado). Relatório do Verificador em `.specs/features/conta-e-login/validation.md`.
-- `MAPAE_JWT_SEGREDO` foi gerado no `.env` local; cada integrante precisa do seu.
-- Próximas tasks: cadastro de locais de clientes com posição (AD-029) e registro da confirmação de ida (AD-026), que agora pode usar o token.
+- Feature `locais-mapa-e-pesquisa` (BACK-022 e BACK-023): implementada na branch `PesquisaLocais`, sem commit (AD-001); 219 testes passando; Verificador PASS na iteração 2 (2026-11-12). Premissa a confirmar com a equipe: loja bloqueada ou inativa fica fora do catálogo. Migração `V20261112060000__catalogo_de_locais` ainda não aplicada no Supabase. Relatório do Verificador em `.specs/features/locais-mapa-e-pesquisa/validation.md`.
+- A `main` não compilava (dependência do R2 perdida no merge); corrigido nesta branch (AD-044). Para subir a aplicação, o `.env` precisa das variáveis `CLOUDFLARE_*`.
+- Feature `conta-e-login`: já está na main (merge `5c04b71`), com Verificador PASS. A migração `V20261111103000__criar_contas` está aplicada no Supabase: não alterar o arquivo (o checksum está gravado).
+- `MAPAE_JWT_SEGREDO` precisa estar no `.env` de cada integrante.
+- Próximas tasks: cadastro administrativo de locais (categoria, termos, `ativo` e posição; AD-029, AD-040) e registro da confirmação de ida (AD-026), que já pode usar o token.

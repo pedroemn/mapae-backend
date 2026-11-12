@@ -10,6 +10,7 @@ Como o app usa o mapa e a busca. As decisões e os motivos estão em `docs/decis
 | Traçar uma rota | App de mapas do aparelho, aberto por link | Não |
 | Ver os locais do Mapaê na região visível | `GET /api/v1/locais/area` | Sim |
 | Ver os locais do Mapaê, perto de um ponto ou todos | `GET /api/v1/locais/proximos` | Sim |
+| Pesquisar locais do Mapaê por nome, categoria ou termo | `GET /api/v1/locais/pesquisa` | Sim |
 
 Os locais que o backend devolve são os de clientes do Mapaê, os que terão promoções e anúncios (AD-029). Os demais lugares que o usuário vê no mapa vêm só da API de mapas. O app deve destacar os locais do Mapaê.
 
@@ -21,32 +22,83 @@ Fluxo da busca livre: o app chama o provedor, recebe as coordenadas, move o mapa
 - Distâncias em metros.
 - Erros seguem o formato Problem Details (RFC 9457), com `status`, `title` e `detail`.
 
+## Catálogo e acesso
+
+- O mapa e a pesquisa só mostram o catálogo ativo: local com `ativo = true`, com posição e, se for conta de loja, com status `ATIVO` (AD-040).
+- As três rotas de `/api/v1/locais` são públicas. Um token enviado a elas é ignorado, mesmo expirado, então o mapa não quebra quando o login vence (AD-041).
+- O item de marcador é igual em `/area` e `/pesquisa`: `id`, `nome`, `categoria` (pode ser `null`), `latitude` e `longitude`. `/proximos` traz os mesmos campos e `distanciaMetros`.
+
+### Paginação (AD-042)
+
+| Parâmetro | Padrão | Regra |
+| --------- | ------ | ----- |
+| `pagina` | 0 | De 0 a 21474836 |
+| `tamanho` | 20 | De 1 a 100 |
+
+```json
+"pagina": { "numero": 0, "tamanho": 20, "totalItens": 42, "totalPaginas": 3 }
+```
+
+Uma página depois da última volta com `itens` vazio e os totais corretos.
+
 ## `GET /api/v1/locais/area`
 
-Locais dentro da caixa da região visível, com as bordas incluídas e ordenados por `id`.
+Locais ativos dentro da caixa da região visível, com as bordas incluídas e ordenados por `id`.
 
 | Parâmetro | Obrigatório | Regra |
 | --------- | ----------- | ----- |
 | `oeste`, `leste` | Sim | De -180 a 180; `oeste` não pode ser maior que `leste` |
 | `sul`, `norte` | Sim | De -90 a 90; `sul` não pode ser maior que `norte` |
-| `limite` | Não | Pelo menos 1; sem ele devolve todos |
+| `pagina`, `tamanho` | Não | Paginação acima; com um deles, a resposta vem paginada |
+| `limite` | Não | Pelo menos 1; não combina com `pagina` nem `tamanho` (400) |
+
+Sem `pagina`, `tamanho` e `limite`, devolve todos os locais da caixa, sem o campo `pagina` (AD-028).
 
 ```json
 {
   "itens": [
-    { "id": 1, "nome": "Mercado", "latitude": -10.9, "longitude": -37.05 }
+    { "id": 1, "nome": "Mercado", "categoria": "mercado", "latitude": -10.9, "longitude": -37.05 }
   ],
-  "truncado": false
+  "truncado": false,
+  "pagina": { "numero": 0, "tamanho": 20, "totalItens": 1, "totalPaginas": 1 }
 }
 ```
 
-`truncado: true` indica que há mais locais do que o `limite`. Os itens devolvidos são os de menor `id`, não os mais relevantes, então o app deve pedir para o usuário aproximar o mapa.
+`truncado: true` indica que há mais locais: com `limite`, os que ficaram de fora; com paginação, a próxima página. Os itens vêm por `id`, não por relevância, então o app deve pedir para o usuário aproximar o mapa ou buscar a próxima página.
 
 Uma caixa que cruza o meridiano de 180° não é aceita. Isso não afeta Aracaju.
 
+## `GET /api/v1/locais/pesquisa`
+
+Pesquisa no catálogo ativo. Sempre paginada.
+
+| Parâmetro | Obrigatório | Regra |
+| --------- | ----------- | ----- |
+| `termo` | Não | Até 100 caracteres, sem o caractere NUL. Casa como trecho do nome, da categoria ou de um dos termos do local |
+| `categoria` | Não | Até 50 caracteres, sem o caractere NUL. Casa por igualdade |
+| `pagina`, `tamanho` | Não | Paginação acima |
+
+- Nenhum dos dois diferencia maiúsculas nem acentos: `cafe` acha "Café Central".
+- `termo` e `categoria` juntos: o local precisa atender aos dois.
+- `termo` vazio ou só com espaços vale como não informado; sem nenhum filtro, lista todo o catálogo ativo.
+- `%` e `_` são caracteres comuns, não curingas.
+- Ordem: nome (sem acento e sem maiúsculas), depois `id`.
+- Sem resultado: 200 com `itens` vazio e `totalItens` 0.
+
+```json
+{
+  "itens": [
+    { "id": 7, "nome": "Café Central", "categoria": "Cafeteria", "latitude": -10.95, "longitude": -37.05 }
+  ],
+  "pagina": { "numero": 0, "tamanho": 20, "totalItens": 1, "totalPaginas": 1 }
+}
+```
+
+A pesquisa só olha os locais do Mapaê. Endereços e outros lugares continuam com o provedor de mapas do app.
+
 ## `GET /api/v1/locais/proximos`
 
-Locais do Mapaê, com ou sem ponto de referência. Todos os parâmetros são opcionais, então o usuário pode consultar de qualquer lugar.
+Locais ativos do Mapaê, com ou sem ponto de referência. Todos os parâmetros são opcionais, então o usuário pode consultar de qualquer lugar.
 
 | Parâmetro | Obrigatório | Regra |
 | --------- | ----------- | ----- |
@@ -62,7 +114,7 @@ Locais do Mapaê, com ou sem ponto de referência. Todos os parâmetros são opc
 ```json
 {
   "itens": [
-    { "id": 1, "nome": "Mercado", "latitude": -10.9, "longitude": -37.05, "distanciaMetros": 110.61 }
+    { "id": 1, "nome": "Mercado", "categoria": "mercado", "latitude": -10.9, "longitude": -37.05, "distanciaMetros": 110.61 }
   ]
 }
 ```

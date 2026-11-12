@@ -97,7 +97,11 @@ class ContasSchemaTests {
                 Map.entry("status", "character varying:YES"),
                 Map.entry("tipo_perfil", "character varying:YES"),
                 Map.entry("criado_em", "timestamp with time zone:YES"),
-                Map.entry("atualizado_em", "timestamp with time zone:YES")));
+                Map.entry("atualizado_em", "timestamp with time zone:YES"),
+                // Catálogo pesquisável (spec locais-mapa-e-pesquisa, CAT-01)
+                Map.entry("categoria", "character varying:YES"),
+                Map.entry("termos", "ARRAY:NO"),
+                Map.entry("ativo", "boolean:NO")));
     }
 
     // CONTA-05

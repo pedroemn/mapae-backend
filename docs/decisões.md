@@ -431,3 +431,54 @@ O review desta task apontou os itens abaixo, atualizados na task de consultas ge
   - O pré-voo (`OPTIONS`) das rotas protegidas passa sem token, e o 401 dessas rotas leva o cabeçalho CORS, para o front conseguir ler o erro e voltar ao login.
   - Origem fora da lista recebe 403 no pré-voo.
   - `CorsTests` cobre o pré-voo do login, o pré-voo de rota protegida, o 401 com cabeçalho CORS e a origem recusada.
+
+---
+
+## Task: Locais no mapa e pesquisa (BACK-022 e BACK-023)
+
+**Data:** 2026-11-12
+**Situação:** implementada no working tree da branch `PesquisaLocais`, sem commit (AD-001). Spec em `.specs/features/locais-mapa-e-pesquisa/`.
+**Verificado:** `./mvnw test` com 219 testes (159 antes da task). Verificador independente com PASS na iteração 2 (25 de 25 ACs; 20 de 20 mutantes mortos; sondas de segurança sem brecha).
+**Supabase:** nada aplicado. A migração `V20261112060000__catalogo_de_locais` sobe na próxima vez que a aplicação iniciar contra o Supabase; a extensão `unaccent` está disponível lá e ainda não instalada. Os locais fictícios existem só nos testes, no PostGIS em Docker.
+
+### AD-040: Catálogo pesquisável: `categoria`, `termos` e `ativo` na tabela `local`
+
+- **Status:** Confirmada pelo usuário em 2026-11-12 (colunas novas e coluna `ativo`).
+- **Decisão:** a migração acrescenta `categoria VARCHAR(50)` (nula), `termos TEXT[] NOT NULL DEFAULT '{}'` e `ativo BOOLEAN NOT NULL DEFAULT true`, e instala `unaccent` no schema `extensions`, como o PostGIS (AD-017). O catálogo ativo é `ativo = true`, com posição e, se o local for conta de loja, com `status = 'ATIVO'`: só ele aparece em `/area`, `/proximos` e `/pesquisa`. Loja bloqueada ou inativa sai do mapa sem que alguém precise mexer em `ativo`.
+- **Consequências:**
+  - Os locais que já existiam continuam ativos, sem categoria e sem termos. A loja cadastrada nasce ativa e sem categoria, e só aparece depois de ter posição (AD-033).
+  - `categoria` (do catálogo) e `tipo` (que a loja informa no cadastro) são colunas diferentes. A equipe precisa decidir se o cadastro administrativo copia o `tipo` para a `categoria` ou se o `tipo` deixa de existir.
+  - Não há como editar categoria, termos e `ativo` pela API até existir o cadastro administrativo de locais (AD-029).
+  - A pesquisa não usa índice. Com a base pequena (AD-029) isso é aceitável; se crescer, o caminho é `pg_trgm` com uma função de normalização imutável.
+
+### AD-041: Rotas públicas ignoram o token
+
+- **Status:** Proposta
+- **Decisão:** o `SegurancaConfig` só lê o cabeçalho `Authorization` nas rotas de `ROTAS_PROTEGIDAS` (hoje `/api/v1/contas/**`). Nas rotas públicas o token é ignorado.
+- **Motivo:** o Spring Security responde 401 a qualquer token inválido, mesmo em rota pública. Um usuário com token expirado perderia o mapa e a pesquisa, que são públicos (BACK-022 e BACK-023).
+- **Consequências:**
+  - Uma rota pública não sabe quem é o usuário, mesmo com token válido. Se alguma rota pública precisar disso no futuro, ela entra em `ROTAS_PROTEGIDAS` ou ganha uma regra própria.
+  - Uma rota nova que exija token precisa entrar em `ROTAS_PROTEGIDAS`, a mesma constante usada pelo `authorizeHttpRequests`. Se ficar de fora do leitor e exigir autenticação, ela falha fechada (sempre 401), nunca aberta.
+
+### AD-042: Paginação com `pagina` e `tamanho`
+
+- **Status:** Confirmada pelo usuário em 2026-11-12. Complementa a AD-028.
+- **Decisão:** `pagina` começa em 0 e vai até 21474836; `tamanho` vale 20 por padrão, com máximo 100. A resposta paginada traz `pagina` com `numero`, `tamanho`, `totalItens` e `totalPaginas`. Fora da faixa, 400 em Problem Details.
+- **Por que o teto de `pagina`:** o Spring Data recusa deslocamento (`pagina × tamanho`) acima de 2.147.483.647, e a resposta seria 500. Com `tamanho` 100, a página 21474836 é a maior que ainda cabe.
+- **Na `/area`:** a paginação é opcional. Sem `pagina`, `tamanho` e `limite`, devolve todos (AD-028), sem o campo `pagina`. `limite` continua valendo, mas não combina com `pagina` ou `tamanho` (400). Com paginação, `truncado` indica que há página seguinte.
+- **Na `/pesquisa`:** sempre paginada.
+- **Consequência:** `/area` e `/pesquisa` devolvem o mesmo item de marcador (`id`, `nome`, `categoria`, `latitude`, `longitude`). `/proximos` também passou a trazer `categoria`.
+
+### AD-043: Regras da pesquisa de locais
+
+- **Status:** Proposta
+- **Decisão:** `GET /api/v1/locais/pesquisa` aceita `termo` (até 100 caracteres), `categoria` (até 50), `pagina` e `tamanho`. O caractere NUL em `termo` ou `categoria` dá 400, porque o PostgreSQL não o aceita em texto. O `termo` casa como trecho do nome, da categoria ou de qualquer termo; a `categoria` casa por igualdade. Nenhum dos dois diferencia maiúsculas nem acentos. Termo ou categoria vazios ou só com espaços valem como não informados. `%`, `_` e `\` no termo são literais. A ordem é por nome sem acento, depois por `id`.
+- **Segurança:** termo e categoria entram como parâmetros da consulta, nunca concatenados ao SQL. O `unaccent` e o seu dicionário vão qualificados (`extensions.unaccent`), então a parte de texto não depende do `search_path`. As funções do PostGIS (`ST_X`, `ST_Y`, `geometry`) continuam sem schema, como em todo o repositório, e dependem do `connection-init-sql` que põe `extensions` no `search_path` (AD-017).
+- **Fora do escopo:** histórico, sugestões, relevância e busca de usuários (BACK-023). Lugares fora do catálogo continuam com o provedor externo de mapas (AD-018, AD-029).
+
+### AD-044: Dependência do Cloudflare R2 restaurada e variáveis documentadas
+
+- **Status:** Correção. Precisa ser revisada por quem mantém o R2.
+- **Problema:** o merge `45ff2d0` (login com main) resolveu o conflito do `pom.xml` mantendo a versão do login e perdeu a dependência `software.amazon.awssdk:s3`. A `main` deixou de compilar. O mesmo merge perdeu as variáveis do R2 no `.env.example`, que já usavam nomes diferentes dos que o código lê.
+- **Correção:** a dependência `software.amazon.awssdk:s3` 2.29.51 voltou ao `pom.xml`. O `.env.example` lista as variáveis com os nomes que `R2Config` e `R2Service` leem (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ACCESS_KEY_ID`, `CLOUDFLARE_SECRET_ACCESS_KEY`, `CLOUDFLARE_ENDPOINT`, `CLOUDFLARE_R2_BUCKET`). Os testes usam valores falsos em `src/test/resources/config/application.properties`.
+- **Consequência:** sem essas variáveis no `.env`, a aplicação não sobe. Sem conta R2, valores falsos bastam para subir local; só o upload falha. Tornar o R2 opcional fica para quem mantém o módulo.
